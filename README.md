@@ -1,4 +1,4 @@
-# Z6502
+# ![Z6502](logo.svg)
 ###### A 6502 emulator written in zig.
 
 
