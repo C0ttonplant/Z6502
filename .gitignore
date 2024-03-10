@@ -1,4 +1,7 @@
 zig-out
 zig-cache
 .vscode
-./*.bin
+test_Branches.bin
+test_Printing.bin
+test_RTS.bin
+test_SBC.bin
