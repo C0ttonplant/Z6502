@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="512"
-   height="512"
-   viewBox="0 0 512 512"
+   width="300"
+   height="218.76576"
+   viewBox="0 0 300 218.76576"
    version="1.1"
    id="svg1"
    sodipodi:docname="logo.svg"
@@ -25,8 +25,8 @@
      inkscape:deskcolor="#505050"
      inkscape:document-units="px"
      inkscape:zoom="1.3934355"
-     inkscape:cx="344.83116"
-     inkscape:cy="229.2894"
+     inkscape:cx="254.40718"
+     inkscape:cy="94.371071"
      inkscape:window-width="1920"
      inkscape:window-height="1008"
      inkscape:window-x="0"
@@ -48,10 +48,11 @@
   <g
      inkscape:label="Layer 1"
      inkscape:groupmode="layer"
-     id="layer1">
+     id="layer1"
+     transform="translate(-6,-73.695206)">
     <g
        id="g4"
-       transform="translate(5.2564354,-1.1444092e-5)"
+       transform="matrix(0.60000001,0,0,0.60000001,5.5538612,29.478077)"
        inkscape:label="legs-bottom">
       <rect
          style="fill:#b3b3b3;fill-opacity:1;stroke-width:0.731811"
@@ -101,7 +102,7 @@
     </g>
     <g
        id="g4-8"
-       transform="translate(5.2564354,-310.00001)"
+       transform="matrix(0.60000001,0,0,0.60000001,5.5538612,-156.52193)"
        inkscape:label="legs-top">
       <rect
          style="fill:#b3b3b3;fill-opacity:1;stroke-width:0.731811"
@@ -150,19 +151,19 @@
          ry="12.900336" />
     </g>
     <rect
-       style="fill:#292929;fill-opacity:1;stroke-width:0.980292"
+       style="fill:#292929;fill-opacity:1;stroke-width:0.588175"
        id="rect1"
-       width="500"
-       height="310"
+       width="300"
+       height="186"
        x="6"
-       y="101"
-       rx="50.473103"
-       ry="50.473103"
+       y="90.078087"
+       rx="30.283861"
+       ry="30.283861"
        inkscape:label="body" />
     <g
        id="g3"
        clip-path="url(#clipPath3)"
-       transform="matrix(0.74407007,0,0,0.74407007,103.92036,103.75701)"
+       transform="matrix(0.44644205,0,0,0.44644205,64.752216,91.73229)"
        inkscape:label="circle">
       <g
          inkscape:label="Clip"
@@ -182,30 +183,30 @@
          r="40.80019" />
     </g>
     <rect
-       style="font-size:120px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';display:inline;fill:#554400;fill-opacity:1;stroke:#554400;stroke-width:49.2362;stroke-dasharray:none;stroke-opacity:1"
+       style="font-size:120px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';display:inline;fill:#554400;fill-opacity:1;stroke:#554400;stroke-width:29.5418;stroke-dasharray:none;stroke-opacity:1"
        id="rect22"
-       width="340.40793"
-       height="87.867867"
-       x="85.264198"
-       y="186.88507"
-       rx="2.7491593"
-       ry="2.7491593"
+       width="204.24477"
+       height="52.720722"
+       x="53.558521"
+       y="141.60913"
+       rx="1.6494957"
+       ry="1.6494957"
        inkscape:label="name-bg" />
     <rect
-       style="font-size:120px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';display:inline;fill:#000000;fill-opacity:1;stroke:#030303;stroke-width:24.9349;stroke-dasharray:none;stroke-opacity:1"
+       style="font-size:120px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';display:inline;fill:#000000;fill-opacity:1;stroke:#030303;stroke-width:14.961;stroke-dasharray:none;stroke-opacity:1"
        id="rect23"
-       width="68.096184"
-       height="112.65546"
-       x="73.351883"
-       y="174.49126"
-       rx="2.7491593"
-       ry="2.7491596"
+       width="40.857712"
+       height="67.593277"
+       x="46.411129"
+       y="134.17284"
+       rx="1.6494957"
+       ry="1.6494958"
        inkscape:label="z-bg" />
     <g
        id="text4"
        style="font-size:120px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';display:inline;fill:#b3b3b3"
        aria-label="Z6502"
-       transform="translate(2.947266,-25.122409)"
+       transform="matrix(0.60000001,0,0,0.60000001,4.1683596,14.404638)"
        inkscape:label="name">
       <path
          style="fill:#806600"
@@ -225,8 +226,8 @@
        inkscape:label="name"><tspan
          sodipodi:role="line"
          id="tspan21"
-         x="66.793457"
-         y="274.46704"
+         x="0"
+         y="0"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:120px;line-height:0;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';letter-spacing:0px"><tspan
            style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:0;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';letter-spacing:0px;fill:#aa8800"
            id="tspan19">Z</tspan><tspan
