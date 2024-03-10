@@ -2,9 +2,9 @@
 <!-- Created with Inkscape (http://www.inkscape.org/) -->
 
 <svg
-   width="300"
+   width="700"
    height="218.76576"
-   viewBox="0 0 300 218.76576"
+   viewBox="0 0 700 218.76576"
    version="1.1"
    id="svg1"
    sodipodi:docname="logo.svg"
@@ -25,8 +25,8 @@
      inkscape:deskcolor="#505050"
      inkscape:document-units="px"
      inkscape:zoom="1.3934355"
-     inkscape:cx="254.40718"
-     inkscape:cy="94.371071"
+     inkscape:cx="316.8428"
+     inkscape:cy="204.88928"
      inkscape:window-width="1920"
      inkscape:window-height="1008"
      inkscape:window-x="0"
@@ -52,7 +52,7 @@
      transform="translate(-6,-73.695206)">
     <g
        id="g4"
-       transform="matrix(0.60000001,0,0,0.60000001,5.5538612,29.478077)"
+       transform="matrix(0.60000001,0,0,0.60000001,205.55386,29.478077)"
        inkscape:label="legs-bottom">
       <rect
          style="fill:#b3b3b3;fill-opacity:1;stroke-width:0.731811"
@@ -102,7 +102,7 @@
     </g>
     <g
        id="g4-8"
-       transform="matrix(0.60000001,0,0,0.60000001,5.5538612,-156.52193)"
+       transform="matrix(0.60000001,0,0,0.60000001,205.55386,-156.52193)"
        inkscape:label="legs-top">
       <rect
          style="fill:#b3b3b3;fill-opacity:1;stroke-width:0.731811"
@@ -155,7 +155,7 @@
        id="rect1"
        width="300"
        height="186"
-       x="6"
+       x="206"
        y="90.078087"
        rx="30.283861"
        ry="30.283861"
@@ -163,7 +163,7 @@
     <g
        id="g3"
        clip-path="url(#clipPath3)"
-       transform="matrix(0.44644205,0,0,0.44644205,64.752216,91.73229)"
+       transform="matrix(0.44644205,0,0,0.44644205,264.75221,91.73229)"
        inkscape:label="circle">
       <g
          inkscape:label="Clip"
@@ -187,7 +187,7 @@
        id="rect22"
        width="204.24477"
        height="52.720722"
-       x="53.558521"
+       x="253.55852"
        y="141.60913"
        rx="1.6494957"
        ry="1.6494957"
@@ -197,7 +197,7 @@
        id="rect23"
        width="40.857712"
        height="67.593277"
-       x="46.411129"
+       x="246.41112"
        y="134.17284"
        rx="1.6494957"
        ry="1.6494958"
@@ -206,7 +206,7 @@
        id="text4"
        style="font-size:120px;font-family:'DejaVu Sans Mono';-inkscape-font-specification:'DejaVu Sans Mono';display:inline;fill:#b3b3b3"
        aria-label="Z6502"
-       transform="matrix(0.60000001,0,0,0.60000001,4.1683596,14.404638)"
+       transform="matrix(0.60000001,0,0,0.60000001,204.16836,14.404638)"
        inkscape:label="name">
       <path
          style="fill:#806600"
