@@ -1050,7 +1050,7 @@ pub fn DCP() u8
     var result = @subWithOverflow(fetched, 1);
     write(addressAbs, result[0]);
 
-    var cmp: u8 = @subWithOverflow(accumulator, result[0]);
+    var cmp: u8 = @subWithOverflow(accumulator, result[0])[0];
 
     // TODO: check how C is set
     statusReg.C = result[1] == 1;
