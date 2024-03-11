@@ -872,11 +872,10 @@ pub fn SBC() u8
 {
     _ = fetch();
 
-    var result1 = @addWithOverflow(accumulator, @addWithOverflow(~(fetched), 1)[0]);
-    var result2 = @addWithOverflow(result1[0], @as(u8, @intFromBool(statusReg.C)));
+    var tmp: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(~fetched)) + @as(u16, @intFromBool(statusReg.C));
+    var result: u8 = @truncate(tmp);
 
-    var result = result2[0];
-    statusReg.C = result1[1] & result2[1] == 1;
+    statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
     statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) != 0;
@@ -987,87 +986,194 @@ pub fn JAM() u8
     std.process.exit(0);
     return 0;
 }
-/// (illegal opcode),
+/// (illegal opcode), logical and + LSR
 pub fn ALR() u8
 {
+    _ = fetch();
+
+    accumulator &= fetched;
+
+    statusReg.C = accumulator & 1 == 1;
+
+    accumulator = accumulator >> 1;
+
+    statusReg.Z = accumulator == 0;
+    statusReg.N = accumulator & 0x80 == 0x80;
+
     return 0;
 }
-/// (illegal opcode),
+/// (illegal opcode), logical and + set C as bit 7
 pub fn ANC() u8
 {
+    _ = fetch();
+
+    accumulator &= fetched;
+
+    statusReg.C = accumulator & 0x80 == 0x80;
+    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.Z = accumulator == 0;
+
     return 0;
 }       
 /// (illegal opcode),
 pub fn ANE() u8
 {
     return 0;
-}       
-/// (illegal opcode), ANC2
-pub fn ARC() u8
-{
-    return 0;
-}       
-/// (illegal opcode),
+}   
+/// (illegal opcode), logical and + ROR
 pub fn ARR() u8
 {
+    _ = fetch();
+
+    accumulator &= fetched;
+
+    var vtmp: u8 = accumulator + fetched;
+
+    var tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
+    
+    statusReg.C = fetched & 1 == 1;
+    statusReg.Z = tmp & 0x00ff == 0;
+    statusReg.N = tmp & 0x80 == 0x80;
+
+    // TODO: more reserch, this is simply a guess on what i think is supposed to happen
+    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) != 0;
+
+    accumulator = @truncate(tmp);
+
     return 0;
 }       
-/// (illegal opcode),
+/// (illegal opcode), decrement memory, then compare
 pub fn DCP() u8
 {
+    _ = fetch();
+
+    var result = @subWithOverflow(fetched, 1);
+    write(addressAbs, result[0]);
+
+    var cmp: u8 = @subWithOverflow(accumulator, result[0]);
+
+    // TODO: check how C is set
+    statusReg.C = result[1] == 1;
+    statusReg.Z = cmp == 0;
+    statusReg.N = cmp & 0x80 == 0x80;
     return 0;
 }       
-/// (illegal opcode),
+/// (illegal opcode), increment memory, then sub carry
 pub fn ISC() u8
 {
+    _ = fetch();
+
+    var inc: u8 = @addWithOverflow(fetched, 1)[0];
+    write(addressAbs, inc);
+
+
+    var tmp: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(~inc)) + @as(u16, @intFromBool(statusReg.C));
+    var result: u8 = @truncate(tmp);
+
+    statusReg.C = tmp > 0xff;
+    statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 == 0x80;
+    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) != 0;
+
+    accumulator = result;
+
     return 0;
 }       
-/// (illegal opcode),
+/// (illegal opcode), logical and -> load accumulator, xReg and stackPtr
 pub fn LAS() u8
 {
-    return 0;
+    _ = fetch();
+
+    // this cant be right
+    accumulator = stackPtr & fetched;
+    xReg = accumulator;
+    // this is wrong in so many ways
+    stackPtr = accumulator;
+
+    statusReg.Z = accumulator == 0;
+    statusReg.N = accumulator & 0x80 == 0x80;
+
+    return 1;
+}       
+/// (illegal opcode), load memory onto accumulator and xReg
+pub fn LAX() u8
+{
+    _ = fetch();
+
+    accumulator = fetched;
+    xReg = fetched;
+
+    statusReg.Z = fetched == 0;
+    statusReg.N = fetched & 0x80 == 0x80;
+    return 1;
 }       
 /// (illegal opcode),
 pub fn LXA() u8
 {
     return 0;
 }       
-/// (illegal opcode),
-pub fn LAX() u8
-{
-    return 0;
-}       
-/// (illegal opcode),
+/// (illegal opcode), ROL -> memory, then logical and -> accumulator
 pub fn RLA() u8
 {
+    _ = fetch();
+
+    var tmp: u16 = fetched << 1 | @as(u16, @intFromBool(statusReg.C));
+    write(addressAbs, @truncate(tmp));
+
+
+    accumulator &= @truncate(tmp);
+
+    statusReg.C = tmp > 0xff;
+    // im guessing that Z and N are set based on the second operation
+    statusReg.Z = accumulator == 0;    
+    statusReg.N = accumulator & 0x80 == 0x80;    
+
     return 0;
 }       
-/// (illegal opcode),
+/// (illegal opcode), ROR, then ADC
 pub fn RRA() u8
 {
+    _ = fetch();
+
+    var tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
+    write(addressAbs, @truncate(tmp));
+
+    // C is set then immediatly used
+    statusReg.C = tmp & 0xff00 != 0;
+    
+
+    var result: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(fetched)) + @as(u16, @intFromBool(statusReg.C));
+
+    statusReg.C = result > 0xff;
+    statusReg.Z = result & 0x00ff == 0;
+    statusReg.N = result & 0x0080 == 0x80;
+    statusReg.V = ((~(accumulator ^ (tmp & 0x00ff)) & (accumulator ^ result)) & 0x80) != 0;
+
+    accumulator = @truncate(result);
+
     return 0;
 }       
-/// (illegal opcode),
-pub fn SBX() u8
-{
-    return 0;
-}       
-/// (illegal opcode),
+/// (illegal opcode), accumulator & xReg -> memory
 pub fn SAX() u8
 {
+    write(addressAbs, accumulator & xReg);
     return 0;
 }       
-/// (illegal opcode),
-pub fn SLO() u8
+/// (illegal opcode), CMP and DEX, (accumulator & xReg) - value -> xReg 
+pub fn SBX() u8
 {
+    _ = fetch();
+
+    var result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(@addWithOverflow(fetched, 1)[0]);
+    xReg = @truncate(result);
+
+    statusReg.C = result > 0xff;
+    statusReg.Z = xReg == 0;
+    statusReg.N = xReg & 0x80 == 0x80;
+
     return 0;
 }       
-/// (illegal opcode),
-pub fn SRE() u8
-{
-    return 0;
-}       
-/// (illegal opcode),
+/// (illegal opcode), 
 pub fn SHA() u8
 {
     return 0;
@@ -1077,14 +1183,60 @@ pub fn SHX() u8
 {
     return 0;
 }       
+/// (illegal opcode), arithmatic shift left, then accumulator | memory -> accumulator
+pub fn SLO() u8
+{
+    _ = fetch();
+
+    statusReg.C = fetched & 0x80 == 0x80;
+    var result: u8 = fetched << 1;
+
+    write(addressAbs, result);
+
+    accumulator |= result;
+
+    statusReg.Z = accumulator == 0;
+    statusReg.N = accumulator & 0x80 == 0x80;
+
+    return 0;
+}       
+/// (illegal opcode), logical shift right, then accumulator ^ memory -> accumulator
+pub fn SRE() u8
+{
+    _ = fetch();
+
+    statusReg.C = fetched & 1 == 1;
+    var result: u8 = fetched >> 1;
+
+    write(addressAbs, result);
+
+    accumulator ^= result;
+
+    statusReg.Z = accumulator == 0;
+    statusReg.N = accumulator & 0x80 == 0x80;
+
+    return 0;
+}       
 /// (illegal opcode),
 pub fn TAS() u8
 {
     return 0;
 }       
-/// (illegal opcode),
+/// (illegal opcode), same as SBC
 pub fn USB() u8
 {
+    _ = fetch();
+
+    var tmp: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(~fetched)) + @as(u16, @intFromBool(statusReg.C));
+    var result: u8 = @truncate(tmp);
+
+    statusReg.C = tmp & 0xff00 != 0;
+    statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 == 0x80;
+    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) != 0;
+
+    accumulator = result;
+
     return 0;
 }       
 
@@ -1114,7 +1266,7 @@ pub var LOOKUP: [0x10][0x10]Instruction =
 .{//    00                                                                  01                                                                  02                                                                  03                                                                   04                                                                  05                                                                  06                                                                  07                                                                   08                                                                  09                                                                  0A                                                                  0B                                                                   0C                                                                  0D                                                                  0E                                                                  0F
     .{ .{ .Name = "BRK", .Cycles = 7, .AddrMode = &IMP, .Operator = &BRK}, .{ .Name = "ORA", .Cycles = 6, .AddrMode = &IZX, .Operator = &ORA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SLO", .Cycles = 8, .AddrMode = &INX, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "ORA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 5, .AddrMode = &ZP0, .Operator = &SLO }, .{ .Name = "PHP", .Cycles = 3, .AddrMode = &IMP, .Operator = &PHP}, .{ .Name = "ORA", .Cycles = 2, .AddrMode = &IMM, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ASL}, .{ .Name = "ANC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABS}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABS, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 6, .AddrMode = &ABS, .Operator = &SLO } },
     .{ .{ .Name = "BPL", .Cycles = 2, .AddrMode = &REL, .Operator = &BPL}, .{ .Name = "ORA", .Cycles = 5, .AddrMode = &IZY, .Operator = &ORA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SLO", .Cycles = 8, .AddrMode = &INY, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 6, .AddrMode = &ZPX, .Operator = &SLO }, .{ .Name = "CLC", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLC}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABY, .Operator = &ORA}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "SLO", .Cycles = 7, .AddrMode = &ABY, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABX, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 7, .AddrMode = &ABX, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 7, .AddrMode = &ABX, .Operator = &SLO } },
-    .{ .{ .Name = "JSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &JSR}, .{ .Name = "AND", .Cycles = 6, .AddrMode = &IZX, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &INX, .Operator = &RLA }, .{ .Name = "BIT", .Cycles = 3, .AddrMode = &ZP0, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 3, .AddrMode = &ZP0, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 5, .AddrMode = &ZP0, .Operator = &RLA }, .{ .Name = "PLP", .Cycles = 4, .AddrMode = &IMP, .Operator = &PLP}, .{ .Name = "AND", .Cycles = 2, .AddrMode = &IMM, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ROL}, .{ .Name = "ARC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ARC }, .{ .Name = "BIT", .Cycles = 4, .AddrMode = &ABS, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABS, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ABS, .Operator = &RLA } },
+    .{ .{ .Name = "JSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &JSR}, .{ .Name = "AND", .Cycles = 6, .AddrMode = &IZX, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &INX, .Operator = &RLA }, .{ .Name = "BIT", .Cycles = 3, .AddrMode = &ZP0, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 3, .AddrMode = &ZP0, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 5, .AddrMode = &ZP0, .Operator = &RLA }, .{ .Name = "PLP", .Cycles = 4, .AddrMode = &IMP, .Operator = &PLP}, .{ .Name = "AND", .Cycles = 2, .AddrMode = &IMM, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ROL}, .{ .Name = "ANC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANC }, .{ .Name = "BIT", .Cycles = 4, .AddrMode = &ABS, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABS, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ABS, .Operator = &RLA } },
     .{ .{ .Name = "BMI", .Cycles = 2, .AddrMode = &REL, .Operator = &BMI}, .{ .Name = "AND", .Cycles = 5, .AddrMode = &IZY, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &INY, .Operator = &RLA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ZPX, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ZPX, .Operator = &RLA }, .{ .Name = "SEC", .Cycles = 2, .AddrMode = &IMP, .Operator = &SEC}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABY, .Operator = &AND}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "RLA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RLA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABX, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 7, .AddrMode = &ABX, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RLA } },
     .{ .{ .Name = "RTI", .Cycles = 6, .AddrMode = &IMP, .Operator = &RTI}, .{ .Name = "EOR", .Cycles = 6, .AddrMode = &IZX, .Operator = &EOR}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SRE", .Cycles = 8, .AddrMode = &INX, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "EOR", .Cycles = 3, .AddrMode = &ZP0, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 5, .AddrMode = &ZP0, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 5, .AddrMode = &ZP0, .Operator = &SRE }, .{ .Name = "PHA", .Cycles = 3, .AddrMode = &IMP, .Operator = &PHA}, .{ .Name = "EOR", .Cycles = 2, .AddrMode = &IMM, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 2, .AddrMode = &IMP, .Operator = &LSR}, .{ .Name = "ALR", .Cycles = 2, .AddrMode = &IMM, .Operator = &ALR }, .{ .Name = "JMP", .Cycles = 3, .AddrMode = &ABS, .Operator = &JMP}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABS, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 6, .AddrMode = &ABS, .Operator = &SRE } },
     .{ .{ .Name = "BVC", .Cycles = 2, .AddrMode = &REL, .Operator = &BVC}, .{ .Name = "EOR", .Cycles = 5, .AddrMode = &IZY, .Operator = &EOR}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SRE", .Cycles = 8, .AddrMode = &INY, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ZPX, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 6, .AddrMode = &ZPX, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 6, .AddrMode = &ZPX, .Operator = &SRE }, .{ .Name = "CLI", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLI}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABY, .Operator = &EOR}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "SRE", .Cycles = 7, .AddrMode = &ABY, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABX, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 7, .AddrMode = &ABX, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 7, .AddrMode = &ABX, .Operator = &SRE } },
