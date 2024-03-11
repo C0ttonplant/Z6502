@@ -48,8 +48,8 @@ pub fn clock() void
 
     clockCount += 1;
     
-    std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    std.time.sleep(1_000_000_000);
+    //std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
+    //std.time.sleep(1_000_000_000);
     
     cycles -= 1;
 }
