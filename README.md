@@ -5,4 +5,4 @@
 - immediatly builds, no setup required
 - currently only supports official opCodes
 - decimal mode is not implemented yet
-- requires ziz version 0.11.0
+- requires zig version 0.11.0
