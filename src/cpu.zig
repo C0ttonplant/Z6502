@@ -48,8 +48,8 @@ pub fn clock() void
 
     clockCount += 1;
     
-    //std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    //std.time.sleep(1_000_000_000);
+    std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
+    std.time.sleep(1_000_000_000);
     
     cycles -= 1;
 }
@@ -990,103 +990,103 @@ pub fn JAM() u8
 /// (illegal opcode),
 pub fn ALR() u8
 {
-
+    return 0;
 }
 /// (illegal opcode),
 pub fn ANC() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn ANE() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode), ANC2
 pub fn ARC() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn ARR() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn DCP() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn ISC() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn LAS() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn LXA() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn LAX() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn RLA() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn RRA() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn SBX() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn SAX() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn SLO() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn SRE() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn SHA() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn SHX() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn TAS() u8
 {
-
-}
+    return 0;
+}       
 /// (illegal opcode),
 pub fn USB() u8
 {
-
-}
+    return 0;
+}       
 
 const StatusRegister = packed struct 
 {
@@ -1142,20 +1142,20 @@ pub const Instruction = struct
 };
 
 
-// 	    ‐0	        ‐1	        ‐2	    ‐3	        ‐4	        ‐5	        ‐6	        ‐7	        ‐8	        ‐9	        ‐A	        ‐B	        ‐C	        ‐D	        ‐E	        ‐F
-// 0‐	BRK impl	ORA X,ind	JAM 	SLO X,ind	NOP zpg	    ORA zpg	    ASL zpg	    SLO zpg	    PHP impl	ORA #	    ASL A	    ANC #	    NOP abs	    ORA abs	    ASL abs	    SLO abs
-// 1‐	BPL rel	    ORA ind,Y	JAM 	SLO ind,Y	NOP zpg,X	ORA zpg,X	ASL zpg,X	SLO zpg,X	CLC impl	ORA abs,Y	NOP impl	SLO abs,Y	NOP abs,X	ORA abs,X	ASL abs,X	SLO abs,X
-// 2‐	JSR abs	    AND X,ind	JAM 	RLA X,ind	BIT zpg	    AND zpg	    ROL zpg	    RLA zpg	    PLP impl	AND #	    ROL A	    ANC #	    BIT abs	    AND abs	    ROL abs	    RLA abs
-// 3‐	BMI rel	    AND ind,Y	JAM 	RLA ind,Y	NOP zpg,X	AND zpg,X	ROL zpg,X	RLA zpg,X	SEC impl	AND abs,Y	NOP impl	RLA abs,Y	NOP abs,X	AND abs,X	ROL abs,X	RLA abs,X
-// 4‐	RTI impl	EOR X,ind	JAM 	SRE X,ind	NOP zpg	    EOR zpg	    LSR zpg	    SRE zpg	    PHA impl	EOR #	    LSR A	    ALR #	    JMP abs	    EOR abs	    LSR abs	    SRE abs
-// 5‐	BVC rel	    EOR ind,Y	JAM 	SRE ind,Y	NOP zpg,X	EOR zpg,X	LSR zpg,X	SRE zpg,X	CLI impl	EOR abs,Y	NOP impl	SRE abs,Y	NOP abs,X	EOR abs,X	LSR abs,X	SRE abs,X
-// 6‐	RTS impl	ADC X,ind	JAM 	RRA X,ind	NOP zpg	    ADC zpg	    ROR zpg	    RRA zpg	    PLA impl	ADC #	    ROR A	    ARR #	    JMP ind	    ADC abs	    ROR abs	    RRA abs
-// 7‐	BVS rel	    ADC ind,Y	JAM 	RRA ind,Y	NOP zpg,X	ADC zpg,X	ROR zpg,X	RRA zpg,X	SEI impl	ADC abs,Y	NOP impl	RRA abs,Y	NOP abs,X	ADC abs,X	ROR abs,X	RRA abs,X
-// 8‐	NOP #	    STA X,ind	NOP #	SAX X,ind	STY zpg	    STA zpg	    STX zpg	    SAX zpg	    DEY impl	NOP #	    TXA impl	ANE #	    STY abs	    STA abs	    STX abs	    SAX abs
-// 9‐	BCC rel	    STA ind,Y	JAM 	SHA ind,Y	STY zpg,X	STA zpg,X	STX zpg,Y	SAX zpg,Y	TYA impl	STA abs,Y	TXS impl	TAS abs,Y	SHY abs,X	STA abs,X	SHX abs,Y	SHA abs,Y
-// A‐	LDY #	    LDA X,ind	LDX #	LAX X,ind	LDY zpg	    LDA zpg	    LDX zpg	    LAX zpg	    TAY impl	LDA #	    TAX impl	LXA #	    LDY abs	    LDA abs	    LDX abs	    LAX abs
-// B‐	BCS rel	    LDA ind,Y	JAM 	LAX ind,Y	LDY zpg,X	LDA zpg,X	LDX zpg,Y	LAX zpg,Y	CLV impl	LDA abs,Y	TSX impl	LAS abs,Y	LDY abs,X	LDA abs,X	LDX abs,Y	LAX abs,Y
-// C‐	CPY #	    CMP X,ind	NOP #	DCP X,ind	CPY zpg	    CMP zpg	    DEC zpg	    DCP zpg	    INY impl	CMP #	    DEX impl	SBX #	    CPY abs	    CMP abs	    DEC abs	    DCP abs
-// D‐	BNE rel	    CMP ind,Y	JAM 	DCP ind,Y	NOP zpg,X	CMP zpg,X	DEC zpg,X	DCP zpg,X	CLD impl	CMP abs,Y	NOP impl	DCP abs,Y	NOP abs,X	CMP abs,X	DEC abs,X	DCP abs,X
-// E‐	CPX #	    SBC X,ind	NOP #	ISC X,ind	CPX zpg	    SBC zpg	    INC zpg	    ISC zpg	    INX impl	SBC #	    NOP impl	USBC #	    CPX abs	    SBC abs	    INC abs	    ISC abs
-// F‐	BEQ rel	    SBC ind,Y	JAM 	ISC ind,Y	NOP zpg,X	SBC zpg,X	INC zpg,X	ISC zpg,X	SED impl	SBC abs,Y	NOP impl	ISC abs,Y	NOP abs,X	SBC abs,X	INC abs,X	ISC abs,X
+//      ‐0          ‐1            ‐2      ‐3            ‐4           ‐5            ‐6            ‐7            ‐8              ‐9             ‐A           ‐B             ‐C            ‐D             ‐E             ‐F
+// 0‐   BRK impl    ORA X,ind     JAM     SLO X,ind     NOP zpg      ORA zpg       ASL zpg       SLO zpg       PHP impl        ORA #          ASL A        ANC #          NOP abs       ORA abs        ASL abs        SLO abs
+// 1‐   BPL rel     ORA ind,Y     JAM     SLO ind,Y     NOP zpg,X    ORA zpg,X     ASL zpg,X     SLO zpg,X     CLC impl        ORA abs,Y      NOP impl     SLO abs,Y      NOP abs,X     ORA abs,X      ASL abs,X      SLO abs,X
+// 2‐   JSR abs     AND X,ind     JAM     RLA X,ind     BIT zpg      AND zpg       ROL zpg       RLA zpg       PLP impl        AND #          ROL A        ANC #          BIT abs       AND abs        ROL abs        RLA abs
+// 3‐   BMI rel     AND ind,Y     JAM     RLA ind,Y     NOP zpg,X    AND zpg,X     ROL zpg,X     RLA zpg,X     SEC impl        AND abs,Y      NOP impl     RLA abs,Y      NOP abs,X     AND abs,X      ROL abs,X      RLA abs,X
+// 4‐   RTI impl    EOR X,ind     JAM     SRE X,ind     NOP zpg      EOR zpg       LSR zpg       SRE zpg       PHA impl        EOR #          LSR A        ALR #          JMP abs       EOR abs        LSR abs        SRE abs
+// 5‐   BVC rel     EOR ind,Y     JAM     SRE ind,Y     NOP zpg,X    EOR zpg,X     LSR zpg,X     SRE zpg,X     CLI impl        EOR abs,Y      NOP impl     SRE abs,Y      NOP abs,X     EOR abs,X      LSR abs,X      SRE abs,X
+// 6‐   RTS impl    ADC X,ind     JAM     RRA X,ind     NOP zpg      ADC zpg       ROR zpg       RRA zpg       PLA impl        ADC #          ROR A        ARR #          JMP ind       ADC abs        ROR abs        RRA abs
+// 7‐   BVS rel     ADC ind,Y     JAM     RRA ind,Y     NOP zpg,X    ADC zpg,X     ROR zpg,X     RRA zpg,X     SEI impl        ADC abs,Y      NOP impl     RRA abs,Y      NOP abs,X     ADC abs,X      ROR abs,X      RRA abs,X
+// 8‐   NOP #       STA X,ind     NOP #   SAX X,ind     STY zpg      STA zpg       STX zpg       SAX zpg       DEY impl        NOP #          TXA impl     ANE #          STY abs       STA abs        STX abs        SAX abs
+// 9‐   BCC rel     STA ind,Y     JAM     SHA ind,Y     STY zpg,X    STA zpg,X     STX zpg,Y     SAX zpg,Y     TYA impl        STA abs,Y      TXS impl     TAS abs,Y      SHY abs,X     STA abs,X      SHX abs,Y      SHA abs,Y
+// A‐   LDY #       LDA X,ind     LDX #   LAX X,ind     LDY zpg      LDA zpg       LDX zpg       LAX zpg       TAY impl        LDA #          TAX impl     LXA #          LDY abs       LDA abs        LDX abs        LAX abs
+// B‐   BCS rel     LDA ind,Y     JAM     LAX ind,Y     LDY zpg,X    LDA zpg,X     LDX zpg,Y     LAX zpg,Y     CLV impl        LDA abs,Y      TSX impl     LAS abs,Y      LDY abs,X     LDA abs,X      LDX abs,Y      LAX abs,Y
+// C‐   CPY #       CMP X,ind     NOP #   DCP X,ind     CPY zpg      CMP zpg       DEC zpg       DCP zpg       INY impl        CMP #          DEX impl     SBX #          CPY abs       CMP abs        DEC abs        DCP abs
+// D‐   BNE rel     CMP ind,Y     JAM     DCP ind,Y     NOP zpg,X    CMP zpg,X     DEC zpg,X     DCP zpg,X     CLD impl        CMP abs,Y      NOP impl     DCP abs,Y      NOP abs,X     CMP abs,X      DEC abs,X      DCP abs,X
+// E‐   CPX #       SBC X,ind     NOP #   ISC X,ind     CPX zpg      SBC zpg       INC zpg       ISC zpg       INX impl        SBC #          NOP impl     USBC #         CPX abs       SBC abs        INC abs        ISC abs
+// F‐   BEQ rel     SBC ind,Y     JAM     ISC ind,Y     NOP zpg,X    SBC zpg,X     INC zpg,X     ISC zpg,X     SED impl        SBC abs,Y      NOP impl     ISC abs,Y      NOP abs,X     SBC abs,X      INC abs,X      ISC abs,X
