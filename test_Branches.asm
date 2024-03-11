@@ -18,11 +18,11 @@ Start:
     BCC trap
     ADC #2
     BCC trap
-    BVC trap
+    BVS trap
     LDA #$10
     ADC #1
     BCS trap
-    BVC trap
+    BVS trap
     BRK
 
 trap:
