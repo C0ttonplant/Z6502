@@ -23,6 +23,9 @@ Start:
     ADC #1
     BCS trap
     BVS trap
+    LDA #$80
+    ADC #-$20
+    BVC trap
     BRK
 
 trap:
