@@ -49,7 +49,7 @@ pub fn clock() void
     clockCount += 1;
     
     //std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    //std.time.sleep(1_000_000_000);
+    //std.time.sleep(1_000_000_00);
     
     cycles -= 1;
 }
@@ -334,7 +334,7 @@ pub fn ADC() u8
     statusReg.C = result > 0xff;
     statusReg.Z = result & 0x00ff == 0;
     statusReg.N = result & 0x0080 == 0x80;
-    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ result)) & 0x80) != 0;
+    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ result)) & 0x80) == 0;
 
     accumulator = @truncate(result);
 
@@ -503,6 +503,7 @@ pub fn BRK() u8
 
     ProgramCounter = (@as(u16, @intCast(read(0xFFFF))) << 8) | read(0xFFFE);
 
+    std.process.exit(0);
     return 0;
 }
 /// branch if overflow clear
@@ -878,7 +879,7 @@ pub fn SBC() u8
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) != 0;
+    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
 
     accumulator = result;
 
@@ -1036,7 +1037,7 @@ pub fn ARR() u8
     statusReg.N = tmp & 0x80 == 0x80;
 
     // TODO: more reserch, this is simply a guess on what i think is supposed to happen
-    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) != 0;
+    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) == 0;
 
     accumulator = @truncate(tmp);
 
@@ -1073,7 +1074,7 @@ pub fn ISC() u8
     statusReg.C = tmp > 0xff;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) != 0;
+    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
 
     accumulator = result;
 
@@ -1147,7 +1148,7 @@ pub fn RRA() u8
     statusReg.C = result > 0xff;
     statusReg.Z = result & 0x00ff == 0;
     statusReg.N = result & 0x0080 == 0x80;
-    statusReg.V = ((~(accumulator ^ (tmp & 0x00ff)) & (accumulator ^ result)) & 0x80) != 0;
+    statusReg.V = ((~(accumulator ^ (tmp & 0x00ff)) & (accumulator ^ result)) & 0x80) == 0;
 
     accumulator = @truncate(result);
 
@@ -1233,7 +1234,7 @@ pub fn USB() u8
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) != 0;
+    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
 
     accumulator = result;
 
