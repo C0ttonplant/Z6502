@@ -48,8 +48,8 @@ pub fn clock() void
 
     clockCount += 1;
     
-    //std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    //std.time.sleep(1_000_000_00);
+    std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
+    std.time.sleep(1_000_000_00);
     
     cycles -= 1;
 }
@@ -879,7 +879,7 @@ pub fn SBC() u8
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
+    statusReg.V = ((accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
 
     accumulator = result;
 
@@ -1074,7 +1074,7 @@ pub fn ISC() u8
     statusReg.C = tmp > 0xff;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
+    statusReg.V = ((accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
 
     accumulator = result;
 
@@ -1234,7 +1234,7 @@ pub fn USB() u8
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = (~(accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
+    statusReg.V = ((accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
 
     accumulator = result;
 
