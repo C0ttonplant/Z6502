@@ -48,8 +48,8 @@ pub fn clock() void
 
     clockCount += 1;
     
-    //std.debug.print("{s}, op {x}, pc {x}, a {x}, x {x}, y {x}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    //std.time.sleep(1_000_000_00);
+    //std.debug.print("{s}, op {x:0<2}, pc {x:0<4}, a {x:0<2}, x {x:0<2}, y {x:0<2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
+    //std.time.sleep(100_000_000);
     
     cycles -= 1;
 }
@@ -62,7 +62,7 @@ pub fn reset() void
     stackPtr = 0xFD;
     statusReg = .{};
 
-    addressAbs = 0xFFFC;
+    addressAbs = 0xFFFE;
 
     var lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
     var hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
@@ -983,7 +983,7 @@ pub fn XXX() u8
 /// (illegal opcode), immediatly closes program
 pub fn JAM() u8
 {
-    std.debug.print("Execution stopped by bad instruction: {x}\n", .{cpu_6502.opCode});
+    std.debug.print("Execution stopped by bad instruction: {x:0<2}\n", .{cpu_6502.opCode});
     std.process.exit(0);
     return 0;
 }
