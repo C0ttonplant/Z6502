@@ -49,7 +49,7 @@ pub fn clock() void
     clockCount += 1;
     
     //std.debug.print("{s}, op {x:0<2}, pc {x:0<4}, a {x:0<2}, x {x:0<2}, y {x:0<2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    //std.time.sleep(100_000_000);
+    std.time.sleep(100_000_000);
     
     cycles -= 1;
 }
@@ -62,7 +62,7 @@ pub fn reset() void
     stackPtr = 0xFD;
     statusReg = .{};
 
-    addressAbs = 0xFFFE;
+    addressAbs = 0xFFFC;
 
     var lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
     var hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
@@ -103,22 +103,22 @@ pub fn irq() void
 /// non mutable interupt request
 pub fn nmi() void
 {
-    write(0x0100 + stackPtr, @truncate(ProgramCounter >> 8));
+    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
-    write(0x0100 + stackPtr, @truncate(ProgramCounter));
+    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     statusReg.B = false;
     statusReg.U = true;
     statusReg.I = true;
 
-    write(0x0100 + stackPtr, @bitCast(statusReg));
+    write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     addressAbs = 0xFFFA;
     var lo: u16 = read(addressAbs);
-    var hi: u16 = read(addressAbs + 1) << 8;
+    var hi: u16 = @as(u16, read(addressAbs + 1)) << 8;
     ProgramCounter = hi | lo;
 
     cycles = 8;
