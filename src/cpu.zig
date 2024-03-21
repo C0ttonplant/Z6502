@@ -334,7 +334,7 @@ pub fn ADC() u8
     statusReg.C = result > 0xff;
     statusReg.Z = result & 0x00ff == 0;
     statusReg.N = result & 0x0080 == 0x80;
-    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ result)) & 0x80) == 0;
+    statusReg.V = (~((accumulator ^ fetched) & (accumulator ^ result)) & 0x80) != 0;
 
     accumulator = @truncate(result);
 
@@ -420,9 +420,8 @@ pub fn BIT() u8
     _ = fetch();
     var result: u8 = accumulator & fetched;
     statusReg.Z = result == 0;
-    statusReg.N = result & 0x80 == 0x80;
-    // TODO: figure out wth is going on here
-    statusReg.V = result & 0x40 == 0x40;
+    statusReg.N = fetched & 0x80 == 0x80;
+    statusReg.V = fetched & 0x40 == 0;
     return 0;
 }
 /// branch if minus
@@ -879,7 +878,7 @@ pub fn SBC() u8
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
     statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = ((accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
+    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (fetched ^ 0xff)) & 0x80) == 0;
 
     accumulator = result;
 
@@ -1036,13 +1035,14 @@ pub fn ARR() u8
     statusReg.Z = tmp & 0x00ff == 0;
     statusReg.N = tmp & 0x80 == 0x80;
 
-    // TODO: more reserch, this is simply a guess on what i think is supposed to happen
-    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) == 0;
+    // TODO: more reaserch, this is simply a guess on what i think is supposed to happen
+    statusReg.V = (~((accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) != 0;
+
 
     accumulator = @truncate(tmp);
 
     return 0;
-}       
+}      
 /// (illegal opcode), decrement memory, then compare
 pub fn DCP() u8
 {
@@ -1148,7 +1148,7 @@ pub fn RRA() u8
     statusReg.C = result > 0xff;
     statusReg.Z = result & 0x00ff == 0;
     statusReg.N = result & 0x0080 == 0x80;
-    statusReg.V = ((~(accumulator ^ (tmp & 0x00ff)) & (accumulator ^ result)) & 0x80) == 0;
+    statusReg.V = (~((accumulator ^ (tmp & 0x00ff)) & (accumulator ^ result)) & 0x80) == 0;
 
     accumulator = @truncate(result);
 
