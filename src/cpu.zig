@@ -27,47 +27,49 @@ pub var cycles: u8 = 0;
 /// iterate the cpu for one cycle
 pub fn clock() void
 {
-    if(cycles != 0 )
+    
+    if(cycles == 0)
     {
-        clockCount += 1;
-        cycles -= 1;
-        return;
+
+        opCode = read(ProgramCounter);
+        statusReg.U = true;
+
+        //std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, getAddrString(cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f]), opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
+        ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+
+        var instr: *Instruction = &LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f];
+
+        cycles = instr.Cycles;
+
+        var additionalCycle1: u8 = instr.AddrMode();
+        var additionalCycle2: u8 = instr.Operator();
+
+        cycles += (additionalCycle1 & additionalCycle2);
+
+        //std.time.sleep(100_000_000);
+        statusReg.U = true;
+
     }
-
-    opCode = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
-
-    var instr: *Instruction = &LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f];
-
-    cycles = instr.Cycles;
-
-    var additionalCycle1: u8 = instr.AddrMode();
-    var additionalCycle2: u8 = instr.Operator();
-
-    cycles += (additionalCycle1 & additionalCycle2);
-
+    
     clockCount += 1;
-    
-    //std.debug.print("{s}, op {x:0<2}, pc {x:0<4}, a {x:0<2}, x {x:0<2}, y {x:0<2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, cpu_6502.opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
-    std.time.sleep(100_000_000);
-    
-    cycles -= 1;
+    cycles -= 1;    
 }
+
 /// reset cpu (does not clear memory)
 pub fn reset() void
 {
-    accumulator = 0;
-    xReg = 0;
-    yReg = 0;
-    stackPtr = 0xFD;
-    statusReg = .{};
-
-    addressAbs = 0xFFFC;
+        addressAbs = 0xFFFC;
 
     var lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
     var hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
 
     ProgramCounter = hi | lo;
+
+    accumulator = 0;
+    xReg = 0;
+    yReg = 0;
+    stackPtr = 0xFD;
+    statusReg = .{ .U = true };
 
     addressAbs = 0;
     addressRel = 0;
@@ -149,13 +151,28 @@ fn toBCD(val: u8) u8
     }
 }
 
+pub fn getAddrString(instr: cpu_6502.Instruction) []const u8
+{
+    if(instr.AddrMode == &cpu_6502.IMM) return "IMM";
+    if(instr.AddrMode == &cpu_6502.IMP) return "IMP";
+    if(instr.AddrMode == &cpu_6502.REL) return "REL";
+    if(instr.AddrMode == &cpu_6502.IND) return "IND";
+    if(instr.AddrMode == &cpu_6502.IZX) return "IZX";
+    if(instr.AddrMode == &cpu_6502.IZY) return "IZY";
+    if(instr.AddrMode == &cpu_6502.ABS) return "ABS";
+    if(instr.AddrMode == &cpu_6502.ABX) return "ABX";
+    if(instr.AddrMode == &cpu_6502.ABY) return "ABY";
+    if(instr.AddrMode == &cpu_6502.ZP0) return "ZP0";
+    if(instr.AddrMode == &cpu_6502.ZPX) return "ZPX";
+    if(instr.AddrMode == &cpu_6502.ZPY) return "ZPY";
+    return "XXX";
+}
 
 // addresing modes
 
 /// implied mode
 pub fn IMP() u8
 {
-
     fetched = accumulator;
     return 0;
 }
@@ -252,11 +269,11 @@ pub fn IND() u8
     // simulate 6502 hardware bug
     if(lo == 0x00ff)
     {
-        addressAbs = (@as(u16, @intCast(read(ptr & 0xff00))) << 8) | read(ptr);
+        addressAbs = (@as(u16, read(ptr & 0xff00)) << 8) | read(ptr);
         return 0;
     }
 
-    addressAbs = (@as(u16, @intCast(read(@addWithOverflow(ptr, 1)[0]))) << 8) | read(ptr);
+    addressAbs = (@as(u16, read(@addWithOverflow(ptr, 1)[0])) << 8) | read(ptr);
 
     return 0;
 }
@@ -266,10 +283,10 @@ pub fn IZX() u8
     var t: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var lo: u16 = read(@addWithOverflow(t, @as(u16, @intCast(xReg)))[0]) & 0x00ff;
-    var hi: u16 = read(@addWithOverflow(@addWithOverflow(t, @as(u16, @intCast(xReg)))[0], 1)[0]) & 0x00ff;   
+    var lo: u16 = read((t + xReg) & 0x00ff);
+    var hi: u16 = read((t + xReg + 1) & 0x00ff);   
     
-    addressAbs = @as(u16, hi << 8) | lo;
+    addressAbs = (hi << 8) | lo;
     return 0;
 }
 /// indirect y
@@ -279,9 +296,9 @@ pub fn IZY() u8
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
     var lo: u16 = read(t & 0x00ff);
-    var hi: u16 = read(@addWithOverflow(t, 1)[0] & 0x00ff);   
+    var hi: u16 = read((t + 1) & 0x00ff);   
     
-    addressAbs = @as(u16, hi << 8) | lo;
+    addressAbs = (hi << 8) | lo;
 
     addressAbs = @addWithOverflow(addressAbs, yReg)[0];
 
@@ -310,7 +327,7 @@ pub fn REL() u8
 //
 pub fn fetch() u8
 {
-    if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode != &IMP) fetched = read(addressAbs);
+    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode != &IMP) fetched = read(addressAbs);
 
     return fetched;
 }
@@ -321,7 +338,7 @@ pub fn AND() u8
     accumulator &= fetched;
 
     statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.N = accumulator & 0x80 != 0;
     return 1;
 }
 /// add carry
@@ -329,12 +346,13 @@ pub fn ADC() u8
 {
     _ = fetch();
 
-    var result: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(fetched)) + @as(u16, @intFromBool(statusReg.C));
+    var result: u16 = @as(u16, accumulator) + @as(u16, fetched) + @as(u16, @intFromBool(statusReg.C));
+
 
     statusReg.C = result > 0xff;
     statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 == 0x80;
-    statusReg.V = (~((accumulator ^ fetched) & (accumulator ^ result)) & 0x80) != 0;
+    statusReg.N = result & 0x0080 != 0;
+    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ result)) & 0x80) != 0;
 
     accumulator = @truncate(result);
 
@@ -344,10 +362,10 @@ pub fn ADC() u8
 pub fn ASL() u8 
 {
     _ = fetch();
-    var tmp: u16 = fetched << 1;
+    var tmp: u16 = @as(u16, fetched) << 1;
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = tmp & 0x00ff == 0;
-    statusReg.Z = tmp & 0x0080 == 0x80;
+    statusReg.N = tmp & 0x0080 != 0;
 
     if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode == &IMP)
     {
@@ -420,8 +438,8 @@ pub fn BIT() u8
     _ = fetch();
     var result: u8 = accumulator & fetched;
     statusReg.Z = result == 0;
-    statusReg.N = fetched & 0x80 == 0x80;
-    statusReg.V = fetched & 0x40 == 0;
+    statusReg.N = fetched & 0x80 != 0;
+    statusReg.V = fetched & 0x40 != 0;
     return 0;
 }
 /// branch if minus
@@ -488,19 +506,19 @@ pub fn BRK() u8
 
     statusReg.I = true;
 
-    write(0x0100 + @as(u16, @intCast(stackPtr)), @truncate(ProgramCounter >> 8));
+    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
-    write(0x0100 + @as(u16, @intCast(stackPtr)), @truncate(ProgramCounter));
+    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     statusReg.B = true;
 
-    write(0x0100 + @as(u16, @intCast(stackPtr)), @bitCast(statusReg));
+    write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     statusReg.B = false;
 
-    ProgramCounter = (@as(u16, @intCast(read(0xFFFF))) << 8) | read(0xFFFE);
+    ProgramCounter = (@as(u16, read(0xFFFF)) << 8) | read(0xFFFE);
 
     std.process.exit(0);
     return 0;
@@ -508,7 +526,7 @@ pub fn BRK() u8
 /// branch if overflow clear
 pub fn BVC() u8 
 {
-    if(!statusReg.V) return 0;
+    if(statusReg.V) return 0;
 
     // branch instructions directly add clock cycles
     cycles += 1;
@@ -527,7 +545,7 @@ pub fn BVC() u8
 /// branch if overflow set
 pub fn BVS() u8 
 {
-    if(statusReg.V) return 0;
+    if(!statusReg.V) return 0;
 
     // branch instructions directly add clock cycles
     cycles += 1;
@@ -571,45 +589,46 @@ pub fn CLV() u8
 pub fn CMP() u8 
 {
     _ = fetch();
-    var result: u16 = @subWithOverflow(@as(u16, @intCast(accumulator)), @as(u16, @intCast(fetched)))[0];
+    var result: u16 = @subWithOverflow(@as(u16, accumulator), @as(u16, fetched))[0];
 
     statusReg.C = accumulator >= fetched;
     statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 == 0x0080;
+    statusReg.N = result & 0x0080 != 0;
+
     return 1;
 }
 /// compare xReg
 pub fn CPX() u8 
 {
     _ = fetch();
-    var result: u16 = @subWithOverflow(@as(u16, @intCast(xReg)), @as(u16, @intCast(fetched)))[0];
+    var result: u16 = @subWithOverflow(@as(u16, xReg), @as(u16, fetched))[0];
 
     statusReg.C = xReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 == 0x0080;
+    statusReg.N = result & 0x0080 != 0;
     return 0;
 }
 /// compare yReg
 pub fn CPY() u8 
 {
     _ = fetch();
-    var result: u16 = @subWithOverflow(@as(u16, @intCast(yReg)), @as(u16, @intCast(fetched)))[0];
+    var result: u16 = @subWithOverflow(@as(u16, yReg), @as(u16, fetched))[0];
 
     statusReg.C = yReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 == 0x0080;
+    statusReg.N = result & 0x0080 != 0;
     return 0;
 }
 /// decrement memory
 pub fn DEC() u8 
 {
     _ = fetch();
+
     var result: u8 = @subWithOverflow(fetched, 1)[0];
     write(addressAbs, result);
 
-
-    statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 == 0x0080;
+statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 != 0;
     return 0;
 }
 /// decrement xReg
@@ -617,8 +636,8 @@ pub fn DEX() u8
 {
     xReg = @subWithOverflow(xReg, 1)[0];
 
-    statusReg.Z = xReg & 0xff == 0;
-    statusReg.N = xReg & 0x80 == 0x80;
+    statusReg.Z = xReg == 0;
+    statusReg.N = xReg & 0x80 != 0;
     return 0;
 }
 /// decrement yReg
@@ -626,8 +645,8 @@ pub fn DEY() u8
 {
     yReg = @subWithOverflow(yReg, 1)[0];
 
-    statusReg.Z = yReg & 0xff == 0;
-    statusReg.N = yReg & 0x80 == 0x80;
+    statusReg.Z = yReg == 0;
+    statusReg.N = yReg & 0x80 != 0;
     return 0;
 }
 /// bitwise xor
@@ -636,8 +655,8 @@ pub fn EOR() u8
     _ = fetch();
     accumulator ^= fetched;
 
-    statusReg.Z = accumulator & 0xff == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.Z = accumulator == 0;
+    statusReg.N = accumulator & 0x80 != 0;
     return 1;
 }
 /// increment memory
@@ -648,8 +667,8 @@ pub fn INC() u8
 
     write(addressAbs, result);
 
-    statusReg.Z = result & 0xff == 0;
-    statusReg.N = result & 0x80 == 0x80;
+    statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 != 0;
     return 0;
 }
 /// increment xReg
@@ -657,8 +676,8 @@ pub fn INX() u8
 {
     xReg = @addWithOverflow(xReg, 1)[0];
 
-    statusReg.Z = xReg & 0xff == 0;
-    statusReg.N = xReg & 0x80 == 0x80;
+    statusReg.Z = xReg == 0;
+    statusReg.N = xReg & 0x80 != 0;
     return 0;
 }
 /// increment yReg
@@ -666,8 +685,8 @@ pub fn INY() u8
 {
     yReg = @addWithOverflow(yReg, 1)[0];
 
-    statusReg.Z = yReg & 0xff == 0;
-    statusReg.N = yReg & 0x80 == 0x80;
+    statusReg.Z = yReg == 0;
+    statusReg.N = yReg & 0x80 != 0;
     return 0;
 }
 /// jump
@@ -681,9 +700,9 @@ pub fn JSR() u8
 {
     ProgramCounter = @subWithOverflow(ProgramCounter, 1)[0];
 
-    write(0x0100 + @as(u16, @intCast(stackPtr)), @truncate(ProgramCounter >> 8));
+    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
-    write(0x0100 + @as(u16, @intCast(stackPtr)), @truncate(ProgramCounter));
+    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     ProgramCounter = addressAbs;
@@ -696,8 +715,8 @@ pub fn LDA() u8
 
     accumulator = fetched;
 
-    statusReg.Z = accumulator & 0xff == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.Z = accumulator == 0;
+    statusReg.N = accumulator & 0x80 != 0;
     return 1;
 }
 /// load xReg
@@ -707,8 +726,8 @@ pub fn LDX() u8
 
     xReg = fetched;
 
-    statusReg.Z = xReg & 0xff == 0;
-    statusReg.N = xReg & 0x80 == 0x80;
+    statusReg.Z = xReg == 0;
+    statusReg.N = xReg & 0x80 != 0;
     return 1;
 }
 /// load yReg
@@ -718,8 +737,8 @@ pub fn LDY() u8
 
     yReg = fetched;
 
-    statusReg.Z = yReg & 0xff == 0;
-    statusReg.N = yReg & 0x80 == 0x80;
+    statusReg.Z = yReg == 0;
+    statusReg.N = yReg & 0x80 != 0;
     return 1;
 }
 /// logical shift right (void -> data -> carry)
@@ -730,9 +749,9 @@ pub fn LSR() u8
 
     var tmp: u8 = fetched >> 1;
     statusReg.Z = tmp == 0;
-    statusReg.N = tmp & 0x80 == 0x80;
+    statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode == &IMP)
     {
         accumulator = tmp;
         return 0;
@@ -757,13 +776,13 @@ pub fn ORA() u8
     accumulator |= fetched;
 
     statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator == 0x80;
+    statusReg.N = accumulator & 0x80 != 0;
     return 0;
 }
 /// push accumulator to stack
 pub fn PHA() u8 
 {
-    write(0x0100 + @as(u16, @intCast(stackPtr)), accumulator);
+    write(0x0100 + @as(u16, stackPtr), accumulator);
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     return 0;
@@ -773,21 +792,22 @@ pub fn PHP() u8
 {
     statusReg.B = true;
     statusReg.U = true;
-    write(0x0100 + @as(u16, @intCast(stackPtr)), @bitCast(statusReg));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
-
+    write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
     statusReg.B = false;
     statusReg.U = false;
-    return 0;
+
+    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+
+        return 0;
 }
 /// pop accumulator from stack
 pub fn PLA() u8 
 {
     stackPtr = @addWithOverflow(stackPtr, 1)[0];
 
-    accumulator = read(0x0100 + @as(u16, @intCast(stackPtr)));
+    accumulator = read(0x0100 + @as(u16, stackPtr));
     statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.N = accumulator & 0x80 != 0;
 
     return 0;
 }
@@ -796,7 +816,7 @@ pub fn PLP() u8
 {
     stackPtr = @addWithOverflow(stackPtr, 1)[0];
 
-    statusReg = @bitCast(read(0x0100 + @as(u16, @intCast(stackPtr))));
+    statusReg = @bitCast(read(0x0100 + @as(u16, stackPtr)));
     statusReg.U = true;
 
     return 0;
@@ -806,13 +826,13 @@ pub fn ROL() u8
 {
     _ = fetch();
 
-    var tmp: u16 = fetched << 1 | @as(u16, @intFromBool(statusReg.C));
+    var tmp: u16 = (@as(u16, fetched) << 1) | @as(u16, @intFromBool(statusReg.C));
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = tmp & 0x00ff == 0;
-    statusReg.N = tmp & 0x80 == 0x80;
+    statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode == &IMP)
     {
         accumulator = @truncate(tmp);
         return 0;
@@ -829,9 +849,9 @@ pub fn ROR() u8
 
     statusReg.C = fetched & 1 == 1;
     statusReg.Z = tmp & 0x00ff == 0;
-    statusReg.N = tmp & 0x80 == 0x80;
+    statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode == &IMP)
     {
         accumulator = @truncate(tmp);
         return 0;
@@ -843,15 +863,15 @@ pub fn ROR() u8
 pub fn RTI() u8 
 {
     stackPtr = @addWithOverflow(stackPtr, 1)[0];
-    statusReg = @bitCast(read(0x0100 + @as(u16, @intCast(stackPtr))));
+    statusReg = @bitCast(read(0x0100 + @as(u16, stackPtr)));
     statusReg.B = false;
     statusReg.U = false;
 
     stackPtr = @addWithOverflow(stackPtr, 1)[0]; 
-    ProgramCounter = read(0x0100 + @as(u16, @intCast(stackPtr)));
+    ProgramCounter = read(0x0100 + @as(u16, stackPtr));
 
     stackPtr = @addWithOverflow(stackPtr, 1)[0]; 
-    ProgramCounter |= @as(u16, @intCast(read(0x0100 + @as(u16, @intCast(stackPtr))))) << 8;
+    ProgramCounter |= @as(u16, read(0x0100 + @as(u16, stackPtr))) << 8;
 
     return 0;
 }
@@ -859,10 +879,10 @@ pub fn RTI() u8
 pub fn RTS() u8 
 {
     stackPtr = @addWithOverflow(stackPtr, 1)[0]; 
-    ProgramCounter = read(0x0100 + @as(u16, @intCast(stackPtr)));
+    ProgramCounter = read(0x0100 + @as(u16, stackPtr));
 
     stackPtr = @addWithOverflow(stackPtr, 1)[0]; 
-    ProgramCounter |= @as(u16, @intCast(read(0x0100 + @as(u16, @intCast(stackPtr))))) << 8;
+    ProgramCounter |= @as(u16, read(0x0100 + @as(u16, stackPtr))) << 8;
 
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0]; 
     return 0;
@@ -872,13 +892,15 @@ pub fn SBC() u8
 {
     _ = fetch();
 
-    var tmp: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(~fetched)) + @as(u16, @intFromBool(statusReg.C));
+    var val: u16 = @as(u16, fetched) ^ 0x00ff;
+
+    var tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
     var result: u8 = @truncate(tmp);
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
-    statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (fetched ^ 0xff)) & 0x80) == 0;
+    statusReg.N = result & 0x80 != 0;
+    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (val)) & 0x80) != 0;
 
     accumulator = result;
 
@@ -926,7 +948,7 @@ pub fn TAX() u8
     xReg = accumulator;
 
     statusReg.Z = xReg == 0;
-    statusReg.N = xReg & 0x80 == 0x80;
+    statusReg.N = xReg & 0x80 != 0;
     return 0;
 }
 /// transfer accumulator to yReg
@@ -935,7 +957,7 @@ pub fn TAY() u8
     yReg = accumulator;
 
     statusReg.Z = yReg == 0;
-    statusReg.N = yReg & 0x80 == 0x80;
+    statusReg.N = yReg & 0x80 != 0;
     return 0;
 }
 /// transfer stackPtr to xReg
@@ -944,7 +966,7 @@ pub fn TSX() u8
     xReg = stackPtr;
 
     statusReg.Z = xReg == 0;
-    statusReg.N = xReg & 0x80 == 0x80;
+    statusReg.N = xReg & 0x80 != 0;
     return 0;
 }
 /// transfer xReg to accumulator
@@ -953,7 +975,7 @@ pub fn TXA() u8
     accumulator = xReg;
 
     statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.N = accumulator & 0x80 != 0;
     return 0;
 }
 /// transfer xReg to stackPtr
@@ -968,7 +990,7 @@ pub fn TYA() u8
     accumulator = yReg;
 
     statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.N = accumulator & 0x80 != 0;
     return 0;
 }
 
@@ -992,9 +1014,7 @@ pub fn ALR() u8
     _ = fetch();
 
     accumulator &= fetched;
-
     statusReg.C = accumulator & 1 == 1;
-
     accumulator = accumulator >> 1;
 
     statusReg.Z = accumulator == 0;
@@ -1053,10 +1073,9 @@ pub fn DCP() u8
 
     var cmp: u8 = @subWithOverflow(accumulator, result[0])[0];
 
-    // TODO: check how C is set
-    statusReg.C = result[1] == 1;
+    statusReg.C = cmp >= result[0] or result[1] == 1;
     statusReg.Z = cmp == 0;
-    statusReg.N = cmp & 0x80 == 0x80;
+    statusReg.N = cmp & 0x80 != 0;
     return 0;
 }       
 /// (illegal opcode), increment memory, then sub carry
@@ -1068,13 +1087,15 @@ pub fn ISC() u8
     write(addressAbs, inc);
 
 
-    var tmp: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(~inc)) + @as(u16, @intFromBool(statusReg.C));
+    var val: u16 = @as(u16, inc) ^ 0x00ff;
+
+    var tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
     var result: u8 = @truncate(tmp);
 
-    statusReg.C = tmp > 0xff;
+    statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
-    statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = ((accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
+    statusReg.N = result & 0x80 != 0;
+    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (val)) & 0x80) != 0;
 
     accumulator = result;
 
@@ -1124,10 +1145,9 @@ pub fn RLA() u8
 
     accumulator &= @truncate(tmp);
 
-    statusReg.C = tmp > 0xff;
-    // im guessing that Z and N are set based on the second operation
+    statusReg.C = fetched & 0x80 != 0;
     statusReg.Z = accumulator == 0;    
-    statusReg.N = accumulator & 0x80 == 0x80;    
+    statusReg.N = accumulator & 0x80 != 0;    
 
     return 0;
 }       
@@ -1137,18 +1157,16 @@ pub fn RRA() u8
     _ = fetch();
 
     var tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
-    write(addressAbs, @truncate(tmp));
-
-    // C is set then immediatly used
-    statusReg.C = tmp & 0xff00 != 0;
+    
+    statusReg.C = fetched & 1 == 1;
     
 
-    var result: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(fetched)) + @as(u16, @intFromBool(statusReg.C));
+    var result: u16 = @as(u16, accumulator) + (tmp & 0x00ff) + @as(u16, @intFromBool(statusReg.C));
 
-    statusReg.C = result > 0xff;
+    statusReg.C = result & 0xff00 != 0;
     statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 == 0x80;
-    statusReg.V = (~((accumulator ^ (tmp & 0x00ff)) & (accumulator ^ result)) & 0x80) == 0;
+    statusReg.N = result & 0x0080 != 0;
+    statusReg.V = ((~(accumulator ^ (tmp & 0x00ff)) & (accumulator ^ (result & 0x00ff))) & 0x80) != 0;
 
     accumulator = @truncate(result);
 
@@ -1228,13 +1246,15 @@ pub fn USB() u8
 {
     _ = fetch();
 
-    var tmp: u16 = @as(u16, @intCast(accumulator)) + @as(u16, @intCast(~fetched)) + @as(u16, @intFromBool(statusReg.C));
+    var val: u16 = @as(u16, fetched) ^ 0x00ff;
+
+    var tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
     var result: u8 = @truncate(tmp);
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
-    statusReg.N = result & 0x80 == 0x80;
-    statusReg.V = ((accumulator ^ fetched) & (accumulator ^ result) & 0x80) == 0;
+    statusReg.N = result & 0x80 != 0;
+    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (val)) & 0x80) != 0;
 
     accumulator = result;
 
