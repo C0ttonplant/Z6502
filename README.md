@@ -3,6 +3,7 @@
 
 
 - immediatly builds, no setup required
-- currently does not support unstable opCodes
+- supports most illegal opCodes
+- does not support unstable opCodes
 - decimal mode is not implemented yet
-- requires zig version 0.11.0
+- requires zig version 0.13.0

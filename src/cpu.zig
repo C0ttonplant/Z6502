@@ -41,8 +41,8 @@ pub fn clock() void
 
         cycles = instr.Cycles;
 
-        var additionalCycle1: u8 = instr.AddrMode();
-        var additionalCycle2: u8 = instr.Operator();
+        const additionalCycle1: u8 = instr.AddrMode();
+        const additionalCycle2: u8 = instr.Operator();
 
         cycles += (additionalCycle1 & additionalCycle2);
 
@@ -60,8 +60,8 @@ pub fn reset() void
 {
         addressAbs = 0xFFFC;
 
-    var lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
-    var hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
+    const lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
+    const hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
 
     ProgramCounter = hi | lo;
 
@@ -96,8 +96,8 @@ pub fn irq() void
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     addressAbs = 0xFFFE;
-    var lo: u16 = read(addressAbs);
-    var hi: u16 = read(addressAbs + 1) << 8;
+    const lo: u16 = read(addressAbs);
+    const hi: u16 = read(addressAbs + 1) << 8;
     ProgramCounter = hi | lo;
 
     cycles = 7;
@@ -119,8 +119,8 @@ pub fn nmi() void
     stackPtr = @subWithOverflow(stackPtr, 1)[0];
 
     addressAbs = 0xFFFA;
-    var lo: u16 = read(addressAbs);
-    var hi: u16 = @as(u16, read(addressAbs + 1)) << 8;
+    const lo: u16 = read(addressAbs);
+    const hi: u16 = @as(u16, read(addressAbs + 1)) << 8;
     ProgramCounter = hi | lo;
 
     cycles = 8;
@@ -145,7 +145,7 @@ fn toBCD(val: u8) u8
     {
         // 8 E - 9
         //13 5
-        var tmp: u4 = bot - 9;
+        const tmp: u4 = bot - 9;
         top += bot - tmp;
         bot = tmp;
     }
@@ -211,10 +211,10 @@ pub fn ZPY() u8
 /// absolute
 pub fn ABS() u8
 {
-    var lo: u16 = read(ProgramCounter);
+    const lo: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
+    const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
     addressAbs = hi | lo;
@@ -224,10 +224,10 @@ pub fn ABS() u8
 /// absolute x
 pub fn ABX() u8
 {
-    var lo: u16 = read(ProgramCounter);
+    const lo: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
+    const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
     addressAbs = hi | lo;
@@ -241,10 +241,10 @@ pub fn ABX() u8
 /// absolute y
 pub fn ABY() u8
 {
-    var lo: u16 = read(ProgramCounter);
+    const lo: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
+    const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
     addressAbs = hi | lo;
@@ -258,13 +258,13 @@ pub fn ABY() u8
 /// indirect
 pub fn IND() u8
 {
-    var lo: u16 = read(ProgramCounter);
+    const lo: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var hi: u16 = @as(u16, read(ProgramCounter)) << 8;
+    const hi: u16 = @as(u16, read(ProgramCounter)) << 8;
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var ptr: u16 = hi | lo;
+    const ptr: u16 = hi | lo;
 
     // simulate 6502 hardware bug
     if(lo == 0x00ff)
@@ -280,11 +280,11 @@ pub fn IND() u8
 /// indirect x
 pub fn IZX() u8
 {
-    var t: u16 = read(ProgramCounter);
+    const t: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var lo: u16 = read((t + xReg) & 0x00ff);
-    var hi: u16 = read((t + xReg + 1) & 0x00ff);   
+    const lo: u16 = read((t + xReg) & 0x00ff);
+    const hi: u16 = read((t + xReg + 1) & 0x00ff);   
     
     addressAbs = (hi << 8) | lo;
     return 0;
@@ -292,11 +292,11 @@ pub fn IZX() u8
 /// indirect y
 pub fn IZY() u8
 {
-    var t: u16 = read(ProgramCounter);
+    const t: u16 = read(ProgramCounter);
     ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-    var lo: u16 = read(t & 0x00ff);
-    var hi: u16 = read((t + 1) & 0x00ff);   
+    const lo: u16 = read(t & 0x00ff);
+    const hi: u16 = read((t + 1) & 0x00ff);   
     
     addressAbs = (hi << 8) | lo;
 
@@ -346,7 +346,7 @@ pub fn ADC() u8
 {
     _ = fetch();
 
-    var result: u16 = @as(u16, accumulator) + @as(u16, fetched) + @as(u16, @intFromBool(statusReg.C));
+    const result: u16 = @as(u16, accumulator) + @as(u16, fetched) + @as(u16, @intFromBool(statusReg.C));
 
 
     statusReg.C = result > 0xff;
@@ -362,7 +362,7 @@ pub fn ADC() u8
 pub fn ASL() u8 
 {
     _ = fetch();
-    var tmp: u16 = @as(u16, fetched) << 1;
+    const tmp: u16 = @as(u16, fetched) << 1;
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = tmp & 0x00ff == 0;
     statusReg.N = tmp & 0x0080 != 0;
@@ -436,7 +436,7 @@ pub fn BEQ() u8
 pub fn BIT() u8 
 {
     _ = fetch();
-    var result: u8 = accumulator & fetched;
+    const result: u8 = accumulator & fetched;
     statusReg.Z = result == 0;
     statusReg.N = fetched & 0x80 != 0;
     statusReg.V = fetched & 0x40 != 0;
@@ -589,7 +589,7 @@ pub fn CLV() u8
 pub fn CMP() u8 
 {
     _ = fetch();
-    var result: u16 = @subWithOverflow(@as(u16, accumulator), @as(u16, fetched))[0];
+    const result: u16 = @subWithOverflow(@as(u16, accumulator), @as(u16, fetched))[0];
 
     statusReg.C = accumulator >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -601,7 +601,7 @@ pub fn CMP() u8
 pub fn CPX() u8 
 {
     _ = fetch();
-    var result: u16 = @subWithOverflow(@as(u16, xReg), @as(u16, fetched))[0];
+    const result: u16 = @subWithOverflow(@as(u16, xReg), @as(u16, fetched))[0];
 
     statusReg.C = xReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -612,7 +612,7 @@ pub fn CPX() u8
 pub fn CPY() u8 
 {
     _ = fetch();
-    var result: u16 = @subWithOverflow(@as(u16, yReg), @as(u16, fetched))[0];
+    const result: u16 = @subWithOverflow(@as(u16, yReg), @as(u16, fetched))[0];
 
     statusReg.C = yReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -624,7 +624,7 @@ pub fn DEC() u8
 {
     _ = fetch();
 
-    var result: u8 = @subWithOverflow(fetched, 1)[0];
+    const result: u8 = @subWithOverflow(fetched, 1)[0];
     write(addressAbs, result);
 
 statusReg.Z = result == 0;
@@ -663,7 +663,7 @@ pub fn EOR() u8
 pub fn INC() u8 
 {
     _ = fetch();
-    var result: u8 = @addWithOverflow(fetched, 1)[0];
+    const result: u8 = @addWithOverflow(fetched, 1)[0];
 
     write(addressAbs, result);
 
@@ -747,7 +747,7 @@ pub fn LSR() u8
     _ = fetch();
     statusReg.C = fetched & 1 == 1;
 
-    var tmp: u8 = fetched >> 1;
+    const tmp: u8 = fetched >> 1;
     statusReg.Z = tmp == 0;
     statusReg.N = tmp & 0x80 != 0;
 
@@ -826,7 +826,7 @@ pub fn ROL() u8
 {
     _ = fetch();
 
-    var tmp: u16 = (@as(u16, fetched) << 1) | @as(u16, @intFromBool(statusReg.C));
+    const tmp: u16 = (@as(u16, fetched) << 1) | @as(u16, @intFromBool(statusReg.C));
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = tmp & 0x00ff == 0;
@@ -845,7 +845,7 @@ pub fn ROR() u8
 {
     _ = fetch();
 
-    var tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
+    const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
 
     statusReg.C = fetched & 1 == 1;
     statusReg.Z = tmp & 0x00ff == 0;
@@ -892,10 +892,10 @@ pub fn SBC() u8
 {
     _ = fetch();
 
-    var val: u16 = @as(u16, fetched) ^ 0x00ff;
+    const val: u16 = @as(u16, fetched) ^ 0x00ff;
 
-    var tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
-    var result: u8 = @truncate(tmp);
+    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
+    const result: u8 = @truncate(tmp);
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
@@ -1047,9 +1047,9 @@ pub fn ARR() u8
 
     accumulator &= fetched;
 
-    var vtmp: u8 = accumulator + fetched;
+    const vtmp: u8 = accumulator + fetched;
 
-    var tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
+    const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
     
     statusReg.C = fetched & 1 == 1;
     statusReg.Z = tmp & 0x00ff == 0;
@@ -1068,10 +1068,10 @@ pub fn DCP() u8
 {
     _ = fetch();
 
-    var result = @subWithOverflow(fetched, 1);
+    const result = @subWithOverflow(fetched, 1);
     write(addressAbs, result[0]);
 
-    var cmp: u8 = @subWithOverflow(accumulator, result[0])[0];
+    const cmp: u8 = @subWithOverflow(accumulator, result[0])[0];
 
     statusReg.C = cmp >= result[0] or result[1] == 1;
     statusReg.Z = cmp == 0;
@@ -1083,14 +1083,14 @@ pub fn ISC() u8
 {
     _ = fetch();
 
-    var inc: u8 = @addWithOverflow(fetched, 1)[0];
+    const inc: u8 = @addWithOverflow(fetched, 1)[0];
     write(addressAbs, inc);
 
 
-    var val: u16 = @as(u16, inc) ^ 0x00ff;
+    const val: u16 = @as(u16, inc) ^ 0x00ff;
 
-    var tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
-    var result: u8 = @truncate(tmp);
+    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
+    const result: u8 = @truncate(tmp);
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
@@ -1139,7 +1139,7 @@ pub fn RLA() u8
 {
     _ = fetch();
 
-    var tmp: u16 = fetched << 1 | @as(u16, @intFromBool(statusReg.C));
+    const tmp: u16 = fetched << 1 | @as(u16, @intFromBool(statusReg.C));
     write(addressAbs, @truncate(tmp));
 
 
@@ -1156,12 +1156,12 @@ pub fn RRA() u8
 {
     _ = fetch();
 
-    var tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
+    const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
     
     statusReg.C = fetched & 1 == 1;
     
 
-    var result: u16 = @as(u16, accumulator) + (tmp & 0x00ff) + @as(u16, @intFromBool(statusReg.C));
+    const result: u16 = @as(u16, accumulator) + (tmp & 0x00ff) + @as(u16, @intFromBool(statusReg.C));
 
     statusReg.C = result & 0xff00 != 0;
     statusReg.Z = result & 0x00ff == 0;
@@ -1183,7 +1183,7 @@ pub fn SBX() u8
 {
     _ = fetch();
 
-    var result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(@addWithOverflow(fetched, 1)[0]);
+    const result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(@addWithOverflow(fetched, 1)[0]);
     xReg = @truncate(result);
 
     statusReg.C = result > 0xff;
@@ -1208,7 +1208,7 @@ pub fn SLO() u8
     _ = fetch();
 
     statusReg.C = fetched & 0x80 == 0x80;
-    var result: u8 = fetched << 1;
+    const result: u8 = fetched << 1;
 
     write(addressAbs, result);
 
@@ -1225,7 +1225,7 @@ pub fn SRE() u8
     _ = fetch();
 
     statusReg.C = fetched & 1 == 1;
-    var result: u8 = fetched >> 1;
+    const result: u8 = fetched >> 1;
 
     write(addressAbs, result);
 
@@ -1246,10 +1246,10 @@ pub fn USB() u8
 {
     _ = fetch();
 
-    var val: u16 = @as(u16, fetched) ^ 0x00ff;
+    const val: u16 = @as(u16, fetched) ^ 0x00ff;
 
-    var tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
-    var result: u8 = @truncate(tmp);
+    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
+    const result: u8 = @truncate(tmp);
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
