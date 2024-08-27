@@ -8,7 +8,7 @@ var program = @embedFile("test_printing.bin");
 
 pub fn main() !void
 {
-    @memcpy(&bus.ram.data, program);
+    @memcpy(&bus.sysRam.data, program);
 
     std.debug.print("begin\n", .{});
 
