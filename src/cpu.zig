@@ -34,7 +34,7 @@ pub fn clock() void
         opCode = read(ProgramCounter);
         statusReg.U = true;
 
-        //std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, getAddrString(cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f]), opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, cpu_6502.clockCount});
+        //std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, getAddrString(cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f]), opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, stackPtr, cpu_6502.clockCount});
         ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
         var instr: *Instruction = &LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f];
@@ -68,7 +68,7 @@ pub fn reset() void
     accumulator = 0;
     xReg = 0;
     yReg = 0;
-    stackPtr = 0xFD;
+    stackPtr = 0xFC;
     statusReg = .{ .U = true };
 
     addressAbs = 0;
@@ -362,17 +362,17 @@ pub fn ADC() u8
 pub fn ASL() u8 
 {
     _ = fetch();
-    const tmp: u16 = @as(u16, fetched) << 1;
-    statusReg.C = tmp & 0xff00 != 0;
-    statusReg.Z = tmp & 0x00ff == 0;
-    statusReg.N = tmp & 0x0080 != 0;
+    const tmp: u8 = fetched << 1;
+    statusReg.C = fetched & 0x80 != 0;
+    statusReg.Z = tmp == 0;
+    statusReg.N = tmp & 0x80 != 0;
 
     if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode == &IMP)
     {
-        accumulator = @truncate(tmp);
+        accumulator = tmp;
         return 0;
     }
-    write(addressAbs, @truncate(tmp));
+    write(addressAbs, tmp);
     return 0;
 }
 /// branch if carry clear
@@ -1004,7 +1004,7 @@ pub fn XXX() u8
 /// (illegal opcode), immediatly closes program
 pub fn JAM() u8
 {
-    std.debug.print("Execution stopped by bad instruction: {x:0<2}\n", .{cpu_6502.opCode});
+    std.debug.print("Execution stopped by bad instruction: {x:0>2}\n", .{cpu_6502.opCode});
     std.process.exit(0);
     return 0;
 }
@@ -1035,7 +1035,7 @@ pub fn ANC() u8
 
     return 0;
 }       
-/// (illegal opcode),
+/// (unstable opcode)
 pub fn ANE() u8
 {
     return 0;
@@ -1129,7 +1129,7 @@ pub fn LAX() u8
     statusReg.N = fetched & 0x80 == 0x80;
     return 1;
 }       
-/// (illegal opcode),
+/// (unstable opcode)
 pub fn LXA() u8
 {
     return 0;
@@ -1192,12 +1192,12 @@ pub fn SBX() u8
 
     return 0;
 }       
-/// (illegal opcode), 
+/// (unstable opcode)
 pub fn SHA() u8
 {
     return 0;
 }       
-/// (illegal opcode),
+/// (unstable opcode)
 pub fn SHX() u8
 {
     return 0;
@@ -1236,7 +1236,7 @@ pub fn SRE() u8
 
     return 0;
 }       
-/// (illegal opcode),
+/// (unstable opcode)
 pub fn TAS() u8
 {
     return 0;
