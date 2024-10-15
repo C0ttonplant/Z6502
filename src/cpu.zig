@@ -8,7 +8,7 @@ pub var clockCount: u128 = 0;
 pub var accumulator: u8 = 0;
 pub var xReg: u8 = 0;
 pub var yReg: u8 = 0;
-pub var stackPtr: u8 = 0;
+pub var stackPtr: u8 = 0x0;
 pub var ProgramCounter: u16 = 0;
 pub var statusReg: StatusRegister = .{};
 
@@ -30,14 +30,12 @@ pub fn clock() void
     
     if(cycles == 0)
     {
-
         opCode = read(ProgramCounter);
-        statusReg.U = true;
 
-        //std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f].Name, getAddrString(cpu_6502.LOOKUP[(cpu_6502.opCode & 0xf0) >> 4][cpu_6502.opCode & 0x0f]), opCode, cpu_6502.ProgramCounter, cpu_6502.accumulator, cpu_6502.xReg, cpu_6502.yReg, stackPtr, cpu_6502.clockCount});
+        // std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount});
         ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
 
-        var instr: *Instruction = &LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f];
+        var instr: *Instruction = &LOOKUP[opCode];
 
         cycles = instr.Cycles;
 
@@ -46,9 +44,7 @@ pub fn clock() void
 
         cycles += (additionalCycle1 & additionalCycle2);
 
-        //std.time.sleep(100_000_000);
-        statusReg.U = true;
-
+        // std.time.sleep(100_000_000);
     }
     
     clockCount += 1;
@@ -58,7 +54,7 @@ pub fn clock() void
 /// reset cpu (does not clear memory)
 pub fn reset() void
 {
-        addressAbs = 0xFFFC;
+    addressAbs = 0xFFFC;
 
     const lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
     const hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
@@ -135,37 +131,55 @@ pub fn write(addr: u16, dat: u8) void
 {
     bus.write(addr, dat);
 }
-/// helper function to convert to bcd
+/// helper function to convert to BCD
 fn toBCD(val: u8) u8
 {
+    // this function simply finds the nearest valid bcd value
     var top: u4 = @truncate(val >> 4);
     var bot: u4 = @truncate(val);
 
-    if(bot > 9) 
+    top %= 10;
+
+    if(bot > 9)
     {
-        // 8 E - 9
-        //13 5
-        const tmp: u4 = bot - 9;
-        top += bot - tmp;
-        bot = tmp;
+        bot -= 10;
+        top = (top + 1) % 10;
     }
+
+    return @as(u8, @intCast(top)) << 4 | bot;
 }
 
-pub fn getAddrString(instr: cpu_6502.Instruction) []const u8
+test "BCD" 
 {
-    if(instr.AddrMode == &cpu_6502.IMM) return "IMM";
-    if(instr.AddrMode == &cpu_6502.IMP) return "IMP";
-    if(instr.AddrMode == &cpu_6502.REL) return "REL";
-    if(instr.AddrMode == &cpu_6502.IND) return "IND";
-    if(instr.AddrMode == &cpu_6502.IZX) return "IZX";
-    if(instr.AddrMode == &cpu_6502.IZY) return "IZY";
-    if(instr.AddrMode == &cpu_6502.ABS) return "ABS";
-    if(instr.AddrMode == &cpu_6502.ABX) return "ABX";
-    if(instr.AddrMode == &cpu_6502.ABY) return "ABY";
-    if(instr.AddrMode == &cpu_6502.ZP0) return "ZP0";
-    if(instr.AddrMode == &cpu_6502.ZPX) return "ZPX";
-    if(instr.AddrMode == &cpu_6502.ZPY) return "ZPY";
+    try std.testing.expectEqual(0x10, toBCD(0x10));
+    try std.testing.expectEqual(0x19, toBCD(0x19));
+    try std.testing.expectEqual(0x20, toBCD(0x1A));
+    try std.testing.expectEqual(0x25, toBCD(0x1F));
+    try std.testing.expectEqual(0x65, toBCD(0xFF));
+}
+
+/// helper function to get the string of the addressing mode
+pub fn getAddrString(instr: Instruction) []const u8
+{
+    if(instr.AddrMode == &IMM) return "IMM";
+    if(instr.AddrMode == &IMP) return "IMP";
+    if(instr.AddrMode == &REL) return "REL";
+    if(instr.AddrMode == &IND) return "IND";
+    if(instr.AddrMode == &IZX) return "IZX";
+    if(instr.AddrMode == &IZY) return "IZY";
+    if(instr.AddrMode == &ABS) return "ABS";
+    if(instr.AddrMode == &ABX) return "ABX";
+    if(instr.AddrMode == &ABY) return "ABY";
+    if(instr.AddrMode == &ZP0) return "ZP0";
+    if(instr.AddrMode == &ZPX) return "ZPX";
+    if(instr.AddrMode == &ZPY) return "ZPY";
     return "XXX";
+}
+
+/// gets the correct data for the addressing mode
+pub fn fetch() void
+{
+    if(LOOKUP[opCode].AddrMode != &IMP) fetched = read(addressAbs);
 }
 
 // addresing modes
@@ -325,16 +339,10 @@ pub fn REL() u8
 //
 // opCodes
 //
-pub fn fetch() u8
-{
-    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode != &IMP) fetched = read(addressAbs);
-
-    return fetched;
-}
 /// logical and accumulator
 pub fn AND() u8 
 {
-    _ = fetch();
+    fetch();
     accumulator &= fetched;
 
     statusReg.Z = accumulator == 0;
@@ -344,15 +352,16 @@ pub fn AND() u8
 /// add carry
 pub fn ADC() u8 
 {
-    _ = fetch();
+    fetch();
 
-    const result: u16 = @as(u16, accumulator) + @as(u16, fetched) + @as(u16, @intFromBool(statusReg.C));
+    const tmp: u16 = @as(u16, accumulator) + @as(u16, fetched) + @as(u16, @intFromBool(statusReg.C));
+    const result: u16 = if(statusReg.D) toBCD(@truncate(tmp)) else @truncate(tmp);
 
-
-    statusReg.C = result > 0xff;
+    // TODO: test if this is the proper method for decimal mode
+    statusReg.C = tmp    > if(statusReg.D) @as(u8, 0x99) else 0xFF;
     statusReg.Z = result & 0x00ff == 0;
     statusReg.N = result & 0x0080 != 0;
-    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ result)) & 0x80) != 0;
+    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ tmp)) & 0x80) != 0;
 
     accumulator = @truncate(result);
 
@@ -361,18 +370,18 @@ pub fn ADC() u8
 /// logical shift left (carry <- data <- void)
 pub fn ASL() u8 
 {
-    _ = fetch();
-    const tmp: u8 = fetched << 1;
+    fetch();
+    const tmp: u16 = @as(u16, fetched) << 1;
     statusReg.C = fetched & 0x80 != 0;
-    statusReg.Z = tmp == 0;
+    statusReg.Z = tmp & 0xff == 0;
     statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[(opCode & 0xf0) >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode].AddrMode == &IMP)
     {
-        accumulator = tmp;
+        accumulator = @truncate(tmp);
         return 0;
     }
-    write(addressAbs, tmp);
+    write(addressAbs, @truncate(tmp));
     return 0;
 }
 /// branch if carry clear
@@ -435,7 +444,7 @@ pub fn BEQ() u8
 /// test bits
 pub fn BIT() u8 
 {
-    _ = fetch();
+    fetch();
     const result: u8 = accumulator & fetched;
     statusReg.Z = result == 0;
     statusReg.N = fetched & 0x80 != 0;
@@ -588,7 +597,7 @@ pub fn CLV() u8
 /// compare accumulator
 pub fn CMP() u8 
 {
-    _ = fetch();
+    fetch();
     const result: u16 = @subWithOverflow(@as(u16, accumulator), @as(u16, fetched))[0];
 
     statusReg.C = accumulator >= fetched;
@@ -600,7 +609,7 @@ pub fn CMP() u8
 /// compare xReg
 pub fn CPX() u8 
 {
-    _ = fetch();
+    fetch();
     const result: u16 = @subWithOverflow(@as(u16, xReg), @as(u16, fetched))[0];
 
     statusReg.C = xReg >= fetched;
@@ -611,7 +620,7 @@ pub fn CPX() u8
 /// compare yReg
 pub fn CPY() u8 
 {
-    _ = fetch();
+    fetch();
     const result: u16 = @subWithOverflow(@as(u16, yReg), @as(u16, fetched))[0];
 
     statusReg.C = yReg >= fetched;
@@ -622,7 +631,7 @@ pub fn CPY() u8
 /// decrement memory
 pub fn DEC() u8 
 {
-    _ = fetch();
+    fetch();
 
     const result: u8 = @subWithOverflow(fetched, 1)[0];
     write(addressAbs, result);
@@ -652,7 +661,7 @@ pub fn DEY() u8
 /// bitwise xor
 pub fn EOR() u8 
 {
-    _ = fetch();
+    fetch();
     accumulator ^= fetched;
 
     statusReg.Z = accumulator == 0;
@@ -662,7 +671,7 @@ pub fn EOR() u8
 /// increment memory
 pub fn INC() u8 
 {
-    _ = fetch();
+    fetch();
     const result: u8 = @addWithOverflow(fetched, 1)[0];
 
     write(addressAbs, result);
@@ -692,6 +701,10 @@ pub fn INY() u8
 /// jump
 pub fn JMP() u8 
 {
+
+    // @import("root").dumpVirtualMemory() catch {};
+
+    // std.process.exit(0);
     ProgramCounter = addressAbs;
     return 0;
 }
@@ -711,7 +724,7 @@ pub fn JSR() u8
 /// load accumulator
 pub fn LDA() u8 
 {
-    _ = fetch();
+    fetch();
 
     accumulator = fetched;
 
@@ -722,7 +735,7 @@ pub fn LDA() u8
 /// load xReg
 pub fn LDX() u8 
 {
-    _ = fetch();
+    fetch();
 
     xReg = fetched;
 
@@ -733,7 +746,7 @@ pub fn LDX() u8
 /// load yReg
 pub fn LDY() u8 
 {
-    _ = fetch();
+    fetch();
 
     yReg = fetched;
 
@@ -744,14 +757,14 @@ pub fn LDY() u8
 /// logical shift right (void -> data -> carry)
 pub fn LSR() u8 
 {
-    _ = fetch();
+    fetch();
     statusReg.C = fetched & 1 == 1;
 
     const tmp: u8 = fetched >> 1;
     statusReg.Z = tmp == 0;
     statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode].AddrMode == &IMP)
     {
         accumulator = tmp;
         return 0;
@@ -771,7 +784,7 @@ pub fn NOP() u8
 /// bitwise or accumulator
 pub fn ORA() u8 
 {
-    _ = fetch();
+    fetch();
 
     accumulator |= fetched;
 
@@ -824,7 +837,7 @@ pub fn PLP() u8
 /// rotate bits left (carry <- data <- carry)
 pub fn ROL() u8 
 {
-    _ = fetch();
+    fetch();
 
     const tmp: u16 = (@as(u16, fetched) << 1) | @as(u16, @intFromBool(statusReg.C));
 
@@ -832,7 +845,7 @@ pub fn ROL() u8
     statusReg.Z = tmp & 0x00ff == 0;
     statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode].AddrMode == &IMP)
     {
         accumulator = @truncate(tmp);
         return 0;
@@ -843,7 +856,7 @@ pub fn ROL() u8
 /// rotate bits right (carry -> data -> carry)
 pub fn ROR() u8 
 {
-    _ = fetch();
+    fetch();
 
     const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
 
@@ -851,7 +864,7 @@ pub fn ROR() u8
     statusReg.Z = tmp & 0x00ff == 0;
     statusReg.N = tmp & 0x80 != 0;
 
-    if(LOOKUP[opCode >> 4][opCode & 0x0f].AddrMode == &IMP)
+    if(LOOKUP[opCode].AddrMode == &IMP)
     {
         accumulator = @truncate(tmp);
         return 0;
@@ -890,12 +903,12 @@ pub fn RTS() u8
 /// carry subtract
 pub fn SBC() u8 
 {
-    _ = fetch();
+    fetch();
 
     const val: u16 = @as(u16, fetched) ^ 0x00ff;
 
-    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
-    const result: u8 = @truncate(tmp);
+    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C)) - if(statusReg.D) @as(u16, 0x66) else 0;
+    const result: u8 = if(statusReg.D) toBCD(@truncate(tmp)) else @truncate(tmp);
 
     statusReg.C = tmp & 0xff00 != 0;
     statusReg.Z = result == 0;
@@ -1004,14 +1017,15 @@ pub fn XXX() u8
 /// (illegal opcode), immediatly closes program
 pub fn JAM() u8
 {
-    std.debug.print("Execution stopped by bad instruction: {x:0>2}\n", .{cpu_6502.opCode});
+    std.debug.print("Execution stopped by bad instruction: {x:0>2}\n", .{opCode});
+    @import("root").dumpVirtualMemory() catch {};
     std.process.exit(0);
     return 0;
 }
 /// (illegal opcode), logical and + LSR
 pub fn ALR() u8
 {
-    _ = fetch();
+    fetch();
 
     accumulator &= fetched;
     statusReg.C = accumulator & 1 == 1;
@@ -1025,7 +1039,7 @@ pub fn ALR() u8
 /// (illegal opcode), logical and + set C as bit 7
 pub fn ANC() u8
 {
-    _ = fetch();
+    fetch();
 
     accumulator &= fetched;
 
@@ -1035,7 +1049,7 @@ pub fn ANC() u8
 
     return 0;
 }       
-/// (unstable opcode)
+/// (unstable opcode),
 pub fn ANE() u8
 {
     return 0;
@@ -1043,7 +1057,7 @@ pub fn ANE() u8
 /// (illegal opcode), logical and + ROR
 pub fn ARR() u8
 {
-    _ = fetch();
+    fetch();
 
     accumulator &= fetched;
 
@@ -1066,7 +1080,7 @@ pub fn ARR() u8
 /// (illegal opcode), decrement memory, then compare
 pub fn DCP() u8
 {
-    _ = fetch();
+    fetch();
 
     const result = @subWithOverflow(fetched, 1);
     write(addressAbs, result[0]);
@@ -1081,7 +1095,7 @@ pub fn DCP() u8
 /// (illegal opcode), increment memory, then sub carry
 pub fn ISC() u8
 {
-    _ = fetch();
+    fetch();
 
     const inc: u8 = @addWithOverflow(fetched, 1)[0];
     write(addressAbs, inc);
@@ -1104,7 +1118,7 @@ pub fn ISC() u8
 /// (illegal opcode), logical and -> load accumulator, xReg and stackPtr
 pub fn LAS() u8
 {
-    _ = fetch();
+    fetch();
 
     // this cant be right
     accumulator = stackPtr & fetched;
@@ -1120,7 +1134,7 @@ pub fn LAS() u8
 /// (illegal opcode), load memory onto accumulator and xReg
 pub fn LAX() u8
 {
-    _ = fetch();
+    fetch();
 
     accumulator = fetched;
     xReg = fetched;
@@ -1137,7 +1151,7 @@ pub fn LXA() u8
 /// (illegal opcode), ROL -> memory, then logical and -> accumulator
 pub fn RLA() u8
 {
-    _ = fetch();
+    fetch();
 
     const tmp: u16 = fetched << 1 | @as(u16, @intFromBool(statusReg.C));
     write(addressAbs, @truncate(tmp));
@@ -1154,7 +1168,7 @@ pub fn RLA() u8
 /// (illegal opcode), ROR, then ADC
 pub fn RRA() u8
 {
-    _ = fetch();
+    fetch();
 
     const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
     
@@ -1181,7 +1195,7 @@ pub fn SAX() u8
 /// (illegal opcode), CMP and DEX, (accumulator & xReg) - value -> xReg 
 pub fn SBX() u8
 {
-    _ = fetch();
+    fetch();
 
     const result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(@addWithOverflow(fetched, 1)[0]);
     xReg = @truncate(result);
@@ -1205,7 +1219,7 @@ pub fn SHX() u8
 /// (illegal opcode), arithmatic shift left, then accumulator | memory -> accumulator
 pub fn SLO() u8
 {
-    _ = fetch();
+    fetch();
 
     statusReg.C = fetched & 0x80 == 0x80;
     const result: u8 = fetched << 1;
@@ -1222,7 +1236,7 @@ pub fn SLO() u8
 /// (illegal opcode), logical shift right, then accumulator ^ memory -> accumulator
 pub fn SRE() u8
 {
-    _ = fetch();
+    fetch();
 
     statusReg.C = fetched & 1 == 1;
     const result: u8 = fetched >> 1;
@@ -1244,7 +1258,7 @@ pub fn TAS() u8
 /// (illegal opcode), same as SBC
 pub fn USB() u8
 {
-    _ = fetch();
+    fetch();
 
     const val: u16 = @as(u16, fetched) ^ 0x00ff;
 
@@ -1270,7 +1284,6 @@ const StatusRegister = packed struct
     /// disable interupts
     I: bool = false, 
     /// decimal mode
-    /// TODO: implement
     D: bool = false, 
     /// break
     B: bool = false, 
@@ -1283,24 +1296,24 @@ const StatusRegister = packed struct
 };
 
 
-pub var LOOKUP: [0x10][0x10]Instruction = 
+pub var LOOKUP: [0x100]Instruction = 
 .{//    00                                                                  01                                                                  02                                                                  03                                                                   04                                                                  05                                                                  06                                                                  07                                                                   08                                                                  09                                                                  0A                                                                  0B                                                                   0C                                                                  0D                                                                  0E                                                                  0F
-    .{ .{ .Name = "BRK", .Cycles = 7, .AddrMode = &IMP, .Operator = &BRK}, .{ .Name = "ORA", .Cycles = 6, .AddrMode = &IZX, .Operator = &ORA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SLO", .Cycles = 8, .AddrMode = &IZX, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "ORA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 5, .AddrMode = &ZP0, .Operator = &SLO }, .{ .Name = "PHP", .Cycles = 3, .AddrMode = &IMP, .Operator = &PHP}, .{ .Name = "ORA", .Cycles = 2, .AddrMode = &IMM, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ASL}, .{ .Name = "ANC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABS}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABS, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 6, .AddrMode = &ABS, .Operator = &SLO } },
-    .{ .{ .Name = "BPL", .Cycles = 2, .AddrMode = &REL, .Operator = &BPL}, .{ .Name = "ORA", .Cycles = 5, .AddrMode = &IZY, .Operator = &ORA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SLO", .Cycles = 8, .AddrMode = &IZY, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 6, .AddrMode = &ZPX, .Operator = &SLO }, .{ .Name = "CLC", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLC}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABY, .Operator = &ORA}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "SLO", .Cycles = 7, .AddrMode = &ABY, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABX, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 7, .AddrMode = &ABX, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 7, .AddrMode = &ABX, .Operator = &SLO } },
-    .{ .{ .Name = "JSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &JSR}, .{ .Name = "AND", .Cycles = 6, .AddrMode = &IZX, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &IZX, .Operator = &RLA }, .{ .Name = "BIT", .Cycles = 3, .AddrMode = &ZP0, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 3, .AddrMode = &ZP0, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 5, .AddrMode = &ZP0, .Operator = &RLA }, .{ .Name = "PLP", .Cycles = 4, .AddrMode = &IMP, .Operator = &PLP}, .{ .Name = "AND", .Cycles = 2, .AddrMode = &IMM, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ROL}, .{ .Name = "ANC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANC }, .{ .Name = "BIT", .Cycles = 4, .AddrMode = &ABS, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABS, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ABS, .Operator = &RLA } },
-    .{ .{ .Name = "BMI", .Cycles = 2, .AddrMode = &REL, .Operator = &BMI}, .{ .Name = "AND", .Cycles = 5, .AddrMode = &IZY, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &IZY, .Operator = &RLA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ZPX, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ZPX, .Operator = &RLA }, .{ .Name = "SEC", .Cycles = 2, .AddrMode = &IMP, .Operator = &SEC}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABY, .Operator = &AND}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "RLA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RLA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABX, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 7, .AddrMode = &ABX, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RLA } },
-    .{ .{ .Name = "RTI", .Cycles = 6, .AddrMode = &IMP, .Operator = &RTI}, .{ .Name = "EOR", .Cycles = 6, .AddrMode = &IZX, .Operator = &EOR}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SRE", .Cycles = 8, .AddrMode = &IZX, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "EOR", .Cycles = 3, .AddrMode = &ZP0, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 5, .AddrMode = &ZP0, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 5, .AddrMode = &ZP0, .Operator = &SRE }, .{ .Name = "PHA", .Cycles = 3, .AddrMode = &IMP, .Operator = &PHA}, .{ .Name = "EOR", .Cycles = 2, .AddrMode = &IMM, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 2, .AddrMode = &IMP, .Operator = &LSR}, .{ .Name = "ALR", .Cycles = 2, .AddrMode = &IMM, .Operator = &ALR }, .{ .Name = "JMP", .Cycles = 3, .AddrMode = &ABS, .Operator = &JMP}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABS, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 6, .AddrMode = &ABS, .Operator = &SRE } },
-    .{ .{ .Name = "BVC", .Cycles = 2, .AddrMode = &REL, .Operator = &BVC}, .{ .Name = "EOR", .Cycles = 5, .AddrMode = &IZY, .Operator = &EOR}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SRE", .Cycles = 8, .AddrMode = &IZY, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ZPX, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 6, .AddrMode = &ZPX, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 6, .AddrMode = &ZPX, .Operator = &SRE }, .{ .Name = "CLI", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLI}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABY, .Operator = &EOR}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "SRE", .Cycles = 7, .AddrMode = &ABY, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABX, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 7, .AddrMode = &ABX, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 7, .AddrMode = &ABX, .Operator = &SRE } },
-    .{ .{ .Name = "RTS", .Cycles = 6, .AddrMode = &IMP, .Operator = &RTS}, .{ .Name = "ADC", .Cycles = 6, .AddrMode = &IZX, .Operator = &ADC}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RRA", .Cycles = 8, .AddrMode = &IZX, .Operator = &RRA }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "ADC", .Cycles = 3, .AddrMode = &ZP0, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 5, .AddrMode = &ZP0, .Operator = &RRA }, .{ .Name = "PLA", .Cycles = 4, .AddrMode = &IMP, .Operator = &PLA}, .{ .Name = "ADC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 2, .AddrMode = &IMP, .Operator = &ROR}, .{ .Name = "ARR", .Cycles = 2, .AddrMode = &IMM, .Operator = &ARR }, .{ .Name = "JMP", .Cycles = 5, .AddrMode = &IND, .Operator = &JMP}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ABS, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 6, .AddrMode = &ABS, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 6, .AddrMode = &ABS, .Operator = &RRA } },
-    .{ .{ .Name = "BVS", .Cycles = 2, .AddrMode = &REL, .Operator = &BVS}, .{ .Name = "ADC", .Cycles = 5, .AddrMode = &IZY, .Operator = &ADC}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RRA", .Cycles = 8, .AddrMode = &IZY, .Operator = &RRA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ZPX, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 6, .AddrMode = &ZPX, .Operator = &RRA }, .{ .Name = "SEI", .Cycles = 2, .AddrMode = &IMP, .Operator = &SEI}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ABY, .Operator = &ADC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "RRA", .Cycles = 7, .AddrMode = &ABY, .Operator = &RRA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ABX, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 7, .AddrMode = &ABX, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RRA } },
-    .{ .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "STA", .Cycles = 6, .AddrMode = &IZX, .Operator = &STA}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "SAX", .Cycles = 6, .AddrMode = &IZX, .Operator = &SAX }, .{ .Name = "STY", .Cycles = 3, .AddrMode = &ZP0, .Operator = &STY}, .{ .Name = "STA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &STA}, .{ .Name = "STX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &STX}, .{ .Name = "SAX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &SAX }, .{ .Name = "DEY", .Cycles = 2, .AddrMode = &IMP, .Operator = &DEY}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "TXA", .Cycles = 2, .AddrMode = &IMP, .Operator = &TXA}, .{ .Name = "ANE", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANE }, .{ .Name = "STY", .Cycles = 4, .AddrMode = &ABS, .Operator = &STY}, .{ .Name = "STA", .Cycles = 4, .AddrMode = &ABS, .Operator = &STA}, .{ .Name = "STX", .Cycles = 4, .AddrMode = &ABS, .Operator = &STX}, .{ .Name = "SAX", .Cycles = 4, .AddrMode = &ABS, .Operator = &SAX } },
-    .{ .{ .Name = "BCC", .Cycles = 2, .AddrMode = &REL, .Operator = &BCC}, .{ .Name = "STA", .Cycles = 6, .AddrMode = &IZY, .Operator = &STA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SHA", .Cycles = 6, .AddrMode = &IZY, .Operator = &SHA }, .{ .Name = "STY", .Cycles = 4, .AddrMode = &ZPX, .Operator = &STY}, .{ .Name = "STA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &STA}, .{ .Name = "STX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &STX}, .{ .Name = "SAX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &SAX }, .{ .Name = "TYA", .Cycles = 2, .AddrMode = &IMP, .Operator = &TYA}, .{ .Name = "STA", .Cycles = 5, .AddrMode = &ABY, .Operator = &STA}, .{ .Name = "TXS", .Cycles = 2, .AddrMode = &IMP, .Operator = &TXS}, .{ .Name = "TAS", .Cycles = 5, .AddrMode = &ABY, .Operator = &TAS }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "STA", .Cycles = 5, .AddrMode = &ABX, .Operator = &STA}, .{ .Name = "SHX", .Cycles = 1, .AddrMode = &ABY, .Operator = &SHX}, .{ .Name = "SHA", .Cycles = 5, .AddrMode = &ABY, .Operator = &SHA } },
-    .{ .{ .Name = "LDY", .Cycles = 2, .AddrMode = &IMM, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 6, .AddrMode = &IZX, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 2, .AddrMode = &IMM, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 6, .AddrMode = &IZX, .Operator = &LAX }, .{ .Name = "LDY", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LAX }, .{ .Name = "TAY", .Cycles = 2, .AddrMode = &IMP, .Operator = &TAY}, .{ .Name = "LDA", .Cycles = 2, .AddrMode = &IMM, .Operator = &LDA}, .{ .Name = "TAX", .Cycles = 2, .AddrMode = &IMP, .Operator = &TAX}, .{ .Name = "LXA", .Cycles = 2, .AddrMode = &IMM, .Operator = &LXA }, .{ .Name = "LDY", .Cycles = 4, .AddrMode = &ABS, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ABS, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 4, .AddrMode = &ABS, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 4, .AddrMode = &ABS, .Operator = &LAX } },
-    .{ .{ .Name = "BCS", .Cycles = 2, .AddrMode = &REL, .Operator = &BCS}, .{ .Name = "LDA", .Cycles = 5, .AddrMode = &IZY, .Operator = &LDA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "LAX", .Cycles = 5, .AddrMode = &IZY, .Operator = &LAX }, .{ .Name = "LDY", .Cycles = 4, .AddrMode = &ZPX, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &LAX }, .{ .Name = "CLV", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLV}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ABY, .Operator = &LDA}, .{ .Name = "TSX", .Cycles = 2, .AddrMode = &IMP, .Operator = &TSX}, .{ .Name = "LAS", .Cycles = 4, .AddrMode = &ABY, .Operator = &LAS }, .{ .Name = "LDY", .Cycles = 4, .AddrMode = &ABX, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ABX, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 4, .AddrMode = &ABY, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 4, .AddrMode = &ABY, .Operator = &LAX } },
-    .{ .{ .Name = "CPY", .Cycles = 2, .AddrMode = &IMM, .Operator = &CPY}, .{ .Name = "CMP", .Cycles = 6, .AddrMode = &IZX, .Operator = &CMP}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "DCP", .Cycles = 8, .AddrMode = &IZX, .Operator = &DCP }, .{ .Name = "CPY", .Cycles = 3, .AddrMode = &ZP0, .Operator = &CPY}, .{ .Name = "CMP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 5, .AddrMode = &ZP0, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 5, .AddrMode = &ZP0, .Operator = &DCP }, .{ .Name = "INY", .Cycles = 2, .AddrMode = &IMP, .Operator = &INY}, .{ .Name = "CMP", .Cycles = 2, .AddrMode = &IMM, .Operator = &CMP}, .{ .Name = "DEX", .Cycles = 2, .AddrMode = &IMP, .Operator = &DEX}, .{ .Name = "SBX", .Cycles = 2, .AddrMode = &IMM, .Operator = &SBX }, .{ .Name = "CPY", .Cycles = 4, .AddrMode = &ABS, .Operator = &CPY}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ABS, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 6, .AddrMode = &ABS, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 6, .AddrMode = &ABS, .Operator = &DCP } },
-    .{ .{ .Name = "BNE", .Cycles = 2, .AddrMode = &REL, .Operator = &BNE}, .{ .Name = "CMP", .Cycles = 5, .AddrMode = &IZY, .Operator = &CMP}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "DCP", .Cycles = 8, .AddrMode = &IZY, .Operator = &DCP }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 6, .AddrMode = &ZPX, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 6, .AddrMode = &ZPX, .Operator = &DCP }, .{ .Name = "CLD", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLD}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ABY, .Operator = &CMP}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "DCP", .Cycles = 7, .AddrMode = &ABY, .Operator = &DCP }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ABX, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 7, .AddrMode = &ABX, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 7, .AddrMode = &ABX, .Operator = &DCP } },
-    .{ .{ .Name = "CPX", .Cycles = 2, .AddrMode = &IMM, .Operator = &CPX}, .{ .Name = "SBC", .Cycles = 6, .AddrMode = &IZX, .Operator = &SBC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "ISC", .Cycles = 8, .AddrMode = &IZX, .Operator = &ISC }, .{ .Name = "CPX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &CPX}, .{ .Name = "SBC", .Cycles = 3, .AddrMode = &ZP0, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 5, .AddrMode = &ZP0, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ISC }, .{ .Name = "INX", .Cycles = 2, .AddrMode = &IMP, .Operator = &INX}, .{ .Name = "SBC", .Cycles = 2, .AddrMode = &IMM, .Operator = &SBC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "USB", .Cycles = 2, .AddrMode = &IMM, .Operator = &USB }, .{ .Name = "CPX", .Cycles = 4, .AddrMode = &ABS, .Operator = &CPX}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ABS, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 6, .AddrMode = &ABS, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 6, .AddrMode = &ABS, .Operator = &ISC } },
-    .{ .{ .Name = "BEQ", .Cycles = 2, .AddrMode = &REL, .Operator = &BEQ}, .{ .Name = "SBC", .Cycles = 5, .AddrMode = &IZY, .Operator = &SBC}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "ISC", .Cycles = 8, .AddrMode = &IZY, .Operator = &ISC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ZPX, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 6, .AddrMode = &ZPX, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ISC }, .{ .Name = "SED", .Cycles = 2, .AddrMode = &IMP, .Operator = &SED}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ABY, .Operator = &SBC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "ISC", .Cycles = 7, .AddrMode = &ABY, .Operator = &ISC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ABX, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 7, .AddrMode = &ABX, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 7, .AddrMode = &ABX, .Operator = &ISC } },
+    .{ .Name = "BRK", .Cycles = 7, .AddrMode = &IMP, .Operator = &BRK}, .{ .Name = "ORA", .Cycles = 6, .AddrMode = &IZX, .Operator = &ORA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SLO", .Cycles = 8, .AddrMode = &IZX, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "ORA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 5, .AddrMode = &ZP0, .Operator = &SLO }, .{ .Name = "PHP", .Cycles = 3, .AddrMode = &IMP, .Operator = &PHP}, .{ .Name = "ORA", .Cycles = 2, .AddrMode = &IMM, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ASL}, .{ .Name = "ANC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABS}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABS, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 6, .AddrMode = &ABS, .Operator = &SLO },
+    .{ .Name = "BPL", .Cycles = 2, .AddrMode = &REL, .Operator = &BPL}, .{ .Name = "ORA", .Cycles = 5, .AddrMode = &IZY, .Operator = &ORA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SLO", .Cycles = 8, .AddrMode = &IZY, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 6, .AddrMode = &ZPX, .Operator = &SLO }, .{ .Name = "CLC", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLC}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABY, .Operator = &ORA}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "SLO", .Cycles = 7, .AddrMode = &ABY, .Operator = &SLO }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "ORA", .Cycles = 4, .AddrMode = &ABX, .Operator = &ORA}, .{ .Name = "ASL", .Cycles = 7, .AddrMode = &ABX, .Operator = &ASL}, .{ .Name = "SLO", .Cycles = 7, .AddrMode = &ABX, .Operator = &SLO },
+    .{ .Name = "JSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &JSR}, .{ .Name = "AND", .Cycles = 6, .AddrMode = &IZX, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &IZX, .Operator = &RLA }, .{ .Name = "BIT", .Cycles = 3, .AddrMode = &ZP0, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 3, .AddrMode = &ZP0, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 5, .AddrMode = &ZP0, .Operator = &RLA }, .{ .Name = "PLP", .Cycles = 4, .AddrMode = &IMP, .Operator = &PLP}, .{ .Name = "AND", .Cycles = 2, .AddrMode = &IMM, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 2, .AddrMode = &IMP, .Operator = &ROL}, .{ .Name = "ANC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANC }, .{ .Name = "BIT", .Cycles = 4, .AddrMode = &ABS, .Operator = &BIT}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABS, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ABS, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ABS, .Operator = &RLA },
+    .{ .Name = "BMI", .Cycles = 2, .AddrMode = &REL, .Operator = &BMI}, .{ .Name = "AND", .Cycles = 5, .AddrMode = &IZY, .Operator = &AND}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RLA", .Cycles = 8, .AddrMode = &IZY, .Operator = &RLA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ZPX, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 6, .AddrMode = &ZPX, .Operator = &RLA }, .{ .Name = "SEC", .Cycles = 2, .AddrMode = &IMP, .Operator = &SEC}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABY, .Operator = &AND}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "RLA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RLA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "AND", .Cycles = 4, .AddrMode = &ABX, .Operator = &AND}, .{ .Name = "ROL", .Cycles = 7, .AddrMode = &ABX, .Operator = &ROL}, .{ .Name = "RLA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RLA },
+    .{ .Name = "RTI", .Cycles = 6, .AddrMode = &IMP, .Operator = &RTI}, .{ .Name = "EOR", .Cycles = 6, .AddrMode = &IZX, .Operator = &EOR}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SRE", .Cycles = 8, .AddrMode = &IZX, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "EOR", .Cycles = 3, .AddrMode = &ZP0, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 5, .AddrMode = &ZP0, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 5, .AddrMode = &ZP0, .Operator = &SRE }, .{ .Name = "PHA", .Cycles = 3, .AddrMode = &IMP, .Operator = &PHA}, .{ .Name = "EOR", .Cycles = 2, .AddrMode = &IMM, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 2, .AddrMode = &IMP, .Operator = &LSR}, .{ .Name = "ALR", .Cycles = 2, .AddrMode = &IMM, .Operator = &ALR }, .{ .Name = "JMP", .Cycles = 3, .AddrMode = &ABS, .Operator = &JMP}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABS, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 6, .AddrMode = &ABS, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 6, .AddrMode = &ABS, .Operator = &SRE },
+    .{ .Name = "BVC", .Cycles = 2, .AddrMode = &REL, .Operator = &BVC}, .{ .Name = "EOR", .Cycles = 5, .AddrMode = &IZY, .Operator = &EOR}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SRE", .Cycles = 8, .AddrMode = &IZY, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ZPX, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 6, .AddrMode = &ZPX, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 6, .AddrMode = &ZPX, .Operator = &SRE }, .{ .Name = "CLI", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLI}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABY, .Operator = &EOR}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "SRE", .Cycles = 7, .AddrMode = &ABY, .Operator = &SRE }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "EOR", .Cycles = 4, .AddrMode = &ABX, .Operator = &EOR}, .{ .Name = "LSR", .Cycles = 7, .AddrMode = &ABX, .Operator = &LSR}, .{ .Name = "SRE", .Cycles = 7, .AddrMode = &ABX, .Operator = &SRE },
+    .{ .Name = "RTS", .Cycles = 6, .AddrMode = &IMP, .Operator = &RTS}, .{ .Name = "ADC", .Cycles = 6, .AddrMode = &IZX, .Operator = &ADC}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RRA", .Cycles = 8, .AddrMode = &IZX, .Operator = &RRA }, .{ .Name = "NOP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &NOP}, .{ .Name = "ADC", .Cycles = 3, .AddrMode = &ZP0, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 5, .AddrMode = &ZP0, .Operator = &RRA }, .{ .Name = "PLA", .Cycles = 4, .AddrMode = &IMP, .Operator = &PLA}, .{ .Name = "ADC", .Cycles = 2, .AddrMode = &IMM, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 2, .AddrMode = &IMP, .Operator = &ROR}, .{ .Name = "ARR", .Cycles = 2, .AddrMode = &IMM, .Operator = &ARR }, .{ .Name = "JMP", .Cycles = 5, .AddrMode = &IND, .Operator = &JMP}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ABS, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 6, .AddrMode = &ABS, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 6, .AddrMode = &ABS, .Operator = &RRA },
+    .{ .Name = "BVS", .Cycles = 2, .AddrMode = &REL, .Operator = &BVS}, .{ .Name = "ADC", .Cycles = 5, .AddrMode = &IZY, .Operator = &ADC}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "RRA", .Cycles = 8, .AddrMode = &IZY, .Operator = &RRA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ZPX, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 6, .AddrMode = &ZPX, .Operator = &RRA }, .{ .Name = "SEI", .Cycles = 2, .AddrMode = &IMP, .Operator = &SEI}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ABY, .Operator = &ADC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "RRA", .Cycles = 7, .AddrMode = &ABY, .Operator = &RRA }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "ADC", .Cycles = 4, .AddrMode = &ABX, .Operator = &ADC}, .{ .Name = "ROR", .Cycles = 7, .AddrMode = &ABX, .Operator = &ROR}, .{ .Name = "RRA", .Cycles = 7, .AddrMode = &ABX, .Operator = &RRA },
+    .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "STA", .Cycles = 6, .AddrMode = &IZX, .Operator = &STA}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "SAX", .Cycles = 6, .AddrMode = &IZX, .Operator = &SAX }, .{ .Name = "STY", .Cycles = 3, .AddrMode = &ZP0, .Operator = &STY}, .{ .Name = "STA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &STA}, .{ .Name = "STX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &STX}, .{ .Name = "SAX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &SAX }, .{ .Name = "DEY", .Cycles = 2, .AddrMode = &IMP, .Operator = &DEY}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "TXA", .Cycles = 2, .AddrMode = &IMP, .Operator = &TXA}, .{ .Name = "ANE", .Cycles = 2, .AddrMode = &IMM, .Operator = &ANE }, .{ .Name = "STY", .Cycles = 4, .AddrMode = &ABS, .Operator = &STY}, .{ .Name = "STA", .Cycles = 4, .AddrMode = &ABS, .Operator = &STA}, .{ .Name = "STX", .Cycles = 4, .AddrMode = &ABS, .Operator = &STX}, .{ .Name = "SAX", .Cycles = 4, .AddrMode = &ABS, .Operator = &SAX },
+    .{ .Name = "BCC", .Cycles = 2, .AddrMode = &REL, .Operator = &BCC}, .{ .Name = "STA", .Cycles = 6, .AddrMode = &IZY, .Operator = &STA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "SHA", .Cycles = 6, .AddrMode = &IZY, .Operator = &SHA }, .{ .Name = "STY", .Cycles = 4, .AddrMode = &ZPX, .Operator = &STY}, .{ .Name = "STA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &STA}, .{ .Name = "STX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &STX}, .{ .Name = "SAX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &SAX }, .{ .Name = "TYA", .Cycles = 2, .AddrMode = &IMP, .Operator = &TYA}, .{ .Name = "STA", .Cycles = 5, .AddrMode = &ABY, .Operator = &STA}, .{ .Name = "TXS", .Cycles = 2, .AddrMode = &IMP, .Operator = &TXS}, .{ .Name = "TAS", .Cycles = 5, .AddrMode = &ABY, .Operator = &TAS }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "STA", .Cycles = 5, .AddrMode = &ABX, .Operator = &STA}, .{ .Name = "SHX", .Cycles = 1, .AddrMode = &ABY, .Operator = &SHX}, .{ .Name = "SHA", .Cycles = 5, .AddrMode = &ABY, .Operator = &SHA },
+    .{ .Name = "LDY", .Cycles = 2, .AddrMode = &IMM, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 6, .AddrMode = &IZX, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 2, .AddrMode = &IMM, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 6, .AddrMode = &IZX, .Operator = &LAX }, .{ .Name = "LDY", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &LAX }, .{ .Name = "TAY", .Cycles = 2, .AddrMode = &IMP, .Operator = &TAY}, .{ .Name = "LDA", .Cycles = 2, .AddrMode = &IMM, .Operator = &LDA}, .{ .Name = "TAX", .Cycles = 2, .AddrMode = &IMP, .Operator = &TAX}, .{ .Name = "LXA", .Cycles = 2, .AddrMode = &IMM, .Operator = &LXA }, .{ .Name = "LDY", .Cycles = 4, .AddrMode = &ABS, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ABS, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 4, .AddrMode = &ABS, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 4, .AddrMode = &ABS, .Operator = &LAX },
+    .{ .Name = "BCS", .Cycles = 2, .AddrMode = &REL, .Operator = &BCS}, .{ .Name = "LDA", .Cycles = 5, .AddrMode = &IZY, .Operator = &LDA}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "LAX", .Cycles = 5, .AddrMode = &IZY, .Operator = &LAX }, .{ .Name = "LDY", .Cycles = 4, .AddrMode = &ZPX, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ZPX, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 4, .AddrMode = &ZPY, .Operator = &LAX }, .{ .Name = "CLV", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLV}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ABY, .Operator = &LDA}, .{ .Name = "TSX", .Cycles = 2, .AddrMode = &IMP, .Operator = &TSX}, .{ .Name = "LAS", .Cycles = 4, .AddrMode = &ABY, .Operator = &LAS }, .{ .Name = "LDY", .Cycles = 4, .AddrMode = &ABX, .Operator = &LDY}, .{ .Name = "LDA", .Cycles = 4, .AddrMode = &ABX, .Operator = &LDA}, .{ .Name = "LDX", .Cycles = 4, .AddrMode = &ABY, .Operator = &LDX}, .{ .Name = "LAX", .Cycles = 4, .AddrMode = &ABY, .Operator = &LAX },
+    .{ .Name = "CPY", .Cycles = 2, .AddrMode = &IMM, .Operator = &CPY}, .{ .Name = "CMP", .Cycles = 6, .AddrMode = &IZX, .Operator = &CMP}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "DCP", .Cycles = 8, .AddrMode = &IZX, .Operator = &DCP }, .{ .Name = "CPY", .Cycles = 3, .AddrMode = &ZP0, .Operator = &CPY}, .{ .Name = "CMP", .Cycles = 3, .AddrMode = &ZP0, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 5, .AddrMode = &ZP0, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 5, .AddrMode = &ZP0, .Operator = &DCP }, .{ .Name = "INY", .Cycles = 2, .AddrMode = &IMP, .Operator = &INY}, .{ .Name = "CMP", .Cycles = 2, .AddrMode = &IMM, .Operator = &CMP}, .{ .Name = "DEX", .Cycles = 2, .AddrMode = &IMP, .Operator = &DEX}, .{ .Name = "SBX", .Cycles = 2, .AddrMode = &IMM, .Operator = &SBX }, .{ .Name = "CPY", .Cycles = 4, .AddrMode = &ABS, .Operator = &CPY}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ABS, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 6, .AddrMode = &ABS, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 6, .AddrMode = &ABS, .Operator = &DCP },
+    .{ .Name = "BNE", .Cycles = 2, .AddrMode = &REL, .Operator = &BNE}, .{ .Name = "CMP", .Cycles = 5, .AddrMode = &IZY, .Operator = &CMP}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "DCP", .Cycles = 8, .AddrMode = &IZY, .Operator = &DCP }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 6, .AddrMode = &ZPX, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 6, .AddrMode = &ZPX, .Operator = &DCP }, .{ .Name = "CLD", .Cycles = 2, .AddrMode = &IMP, .Operator = &CLD}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ABY, .Operator = &CMP}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "DCP", .Cycles = 7, .AddrMode = &ABY, .Operator = &DCP }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "CMP", .Cycles = 4, .AddrMode = &ABX, .Operator = &CMP}, .{ .Name = "DEC", .Cycles = 7, .AddrMode = &ABX, .Operator = &DEC}, .{ .Name = "DCP", .Cycles = 7, .AddrMode = &ABX, .Operator = &DCP },
+    .{ .Name = "CPX", .Cycles = 2, .AddrMode = &IMM, .Operator = &CPX}, .{ .Name = "SBC", .Cycles = 6, .AddrMode = &IZX, .Operator = &SBC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMM, .Operator = &NOP}, .{ .Name = "ISC", .Cycles = 8, .AddrMode = &IZX, .Operator = &ISC }, .{ .Name = "CPX", .Cycles = 3, .AddrMode = &ZP0, .Operator = &CPX}, .{ .Name = "SBC", .Cycles = 3, .AddrMode = &ZP0, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 5, .AddrMode = &ZP0, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 5, .AddrMode = &ZP0, .Operator = &ISC }, .{ .Name = "INX", .Cycles = 2, .AddrMode = &IMP, .Operator = &INX}, .{ .Name = "SBC", .Cycles = 2, .AddrMode = &IMM, .Operator = &SBC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "USB", .Cycles = 2, .AddrMode = &IMM, .Operator = &USB }, .{ .Name = "CPX", .Cycles = 4, .AddrMode = &ABS, .Operator = &CPX}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ABS, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 6, .AddrMode = &ABS, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 6, .AddrMode = &ABS, .Operator = &ISC },
+    .{ .Name = "BEQ", .Cycles = 2, .AddrMode = &REL, .Operator = &BEQ}, .{ .Name = "SBC", .Cycles = 5, .AddrMode = &IZY, .Operator = &SBC}, .{ .Name = "JAM", .Cycles = 1, .AddrMode = &IMP, .Operator = &JAM}, .{ .Name = "ISC", .Cycles = 8, .AddrMode = &IZY, .Operator = &ISC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &ZPX, .Operator = &NOP}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ZPX, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 6, .AddrMode = &ZPX, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 6, .AddrMode = &ZPX, .Operator = &ISC }, .{ .Name = "SED", .Cycles = 2, .AddrMode = &IMP, .Operator = &SED}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ABY, .Operator = &SBC}, .{ .Name = "NOP", .Cycles = 2, .AddrMode = &IMP, .Operator = &NOP}, .{ .Name = "ISC", .Cycles = 7, .AddrMode = &ABY, .Operator = &ISC }, .{ .Name = "NOP", .Cycles = 4, .AddrMode = &IMP, .Operator = &ABX}, .{ .Name = "SBC", .Cycles = 4, .AddrMode = &ABX, .Operator = &SBC}, .{ .Name = "INC", .Cycles = 7, .AddrMode = &ABX, .Operator = &INC}, .{ .Name = "ISC", .Cycles = 7, .AddrMode = &ABX, .Operator = &ISC },
 };
 
 
