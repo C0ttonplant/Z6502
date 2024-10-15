@@ -5,5 +5,5 @@
 - immediatly builds, no setup required
 - supports most illegal opCodes
 - does not support unstable opCodes
-- decimal mode is not implemented yet
+- decimal mode working
 - requires zig version 0.13.0
