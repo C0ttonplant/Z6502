@@ -32,14 +32,14 @@ pub fn ram(offsetStart: u16, offsetEnd: u16) type
             data[addr - startOffset] = dat;
         }
 
-        pub fn dumpVirtualMemory(self: @This()) !void 
+        pub fn dumpVirtualMemory() !void 
         {
             var cwd = fs.cwd();
 
             var f = try cwd.createFile("vMemory.bin", .{});
             defer f.close();
 
-            try f.writeAll(&self.data);
+            try f.writeAll(&data);
 
             // for (0..0x10000) |i|
             // {
