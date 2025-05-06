@@ -1018,7 +1018,7 @@ pub fn XXX() u8
 pub fn JAM() u8
 {
     std.debug.print("Execution stopped by bad instruction: {x:0>2}\n", .{opCode});
-    @import("root").dumpVirtualMemory() catch {};
+    bus.sysRam.dumpVirtualMemory() catch {};
     std.process.exit(0);
     return 0;
 }
