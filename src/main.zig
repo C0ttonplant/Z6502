@@ -19,18 +19,3 @@ pub fn main() !void
         cpu_6502.clock();
     }
 }
-
-fn dumpVirtualMemory() !void 
-{
-    var cwd = fs.cwd();
-
-    var f = try cwd.createFile("vMemory.bin", .{});
-    defer f.close();
-
-    try f.writeAll(&bus.ram.data);
-
-    // for (0..0x10000) |i|
-    // {
-    //     _ = try f.write(&[1]u8{cpu_6502.read(@intCast(i))});
-    // }
-}

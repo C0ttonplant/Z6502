@@ -1,3 +1,6 @@
+const std = @import("std");
+const fs = std.fs;
+
 /// create a ram device
 /// `offsetStart` and `offsetEnd` are inclusive
 pub fn ram(offsetStart: u16, offsetEnd: u16) type
@@ -28,5 +31,21 @@ pub fn ram(offsetStart: u16, offsetEnd: u16) type
             if(addr < startOffset or addr > endOffset) return;
             data[addr - startOffset] = dat;
         }
+
+        pub fn dumpVirtualMemory(self: @This()) !void 
+        {
+            var cwd = fs.cwd();
+
+            var f = try cwd.createFile("vMemory.bin", .{});
+            defer f.close();
+
+            try f.writeAll(&self.data);
+
+            // for (0..0x10000) |i|
+            // {
+            //     _ = try f.write(&[1]u8{cpu_6502.read(@intCast(i))});
+            // }
+        }
+
     };
 }
