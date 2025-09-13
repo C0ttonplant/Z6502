@@ -30,7 +30,7 @@ pub fn clock() void {
         opCode = read(ProgramCounter);
 
         // std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount});
-        ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+        ProgramCounter +%= 1;
 
         var instr: *Instruction = &LOOKUP[opCode];
 
@@ -74,17 +74,17 @@ pub fn irq() void {
     if (statusReg.I) return;
 
     write(0x0100 + stackPtr, @truncate(ProgramCounter >> 8));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     write(0x0100 + stackPtr, @truncate(ProgramCounter));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     statusReg.B = false;
     statusReg.U = true;
     statusReg.I = true;
 
     write(0x0100 + stackPtr, @bitCast(statusReg));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     addressAbs = 0xFFFE;
     const lo: u16 = read(addressAbs);
@@ -96,17 +96,17 @@ pub fn irq() void {
 /// non mutable interupt request
 pub fn nmi() void {
     write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     statusReg.B = false;
     statusReg.U = true;
     statusReg.I = true;
 
     write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     addressAbs = 0xFFFA;
     const lo: u16 = read(addressAbs);
@@ -179,38 +179,38 @@ pub fn IMP() u8 {
 /// immediate mode
 pub fn IMM() u8 {
     addressAbs = ProgramCounter;
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     return 0;
 }
 /// zero page
 pub fn ZP0() u8 {
     addressAbs = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
     addressAbs &= 0x00ff;
     return 0;
 }
 /// zero page x
 pub fn ZPX() u8 {
-    addressAbs = @addWithOverflow(read(ProgramCounter), xReg)[0];
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    addressAbs = read(ProgramCounter) +% xReg;
+    ProgramCounter +%= 1;
     addressAbs &= 0x00ff;
     return 0;
 }
 /// zero page y
 pub fn ZPY() u8 {
-    addressAbs = @addWithOverflow(read(ProgramCounter), yReg)[0];
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    addressAbs = read(ProgramCounter) +% yReg;
+    ProgramCounter +%= 1;
     addressAbs &= 0x00ff;
     return 0;
 }
 /// absolute
 pub fn ABS() u8 {
     const lo: u16 = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     addressAbs = hi | lo;
 
@@ -219,13 +219,13 @@ pub fn ABS() u8 {
 /// absolute x
 pub fn ABX() u8 {
     const lo: u16 = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     addressAbs = hi | lo;
-    addressAbs = @addWithOverflow(addressAbs, xReg)[0];
+    addressAbs +%= xReg;
 
     // returns extra cycle if the reg goes over the page
     if (addressAbs & 0xff00 != hi) return 1;
@@ -235,13 +235,13 @@ pub fn ABX() u8 {
 /// absolute y
 pub fn ABY() u8 {
     const lo: u16 = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     addressAbs = hi | lo;
-    addressAbs = @addWithOverflow(addressAbs, yReg)[0];
+    addressAbs +%= yReg;
 
     // returns extra cycle if the reg goes over the page
     if (addressAbs & 0xff00 != hi) return 1;
@@ -251,10 +251,10 @@ pub fn ABY() u8 {
 /// indirect
 pub fn IND() u8 {
     const lo: u16 = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const hi: u16 = @as(u16, read(ProgramCounter)) << 8;
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const ptr: u16 = hi | lo;
 
@@ -264,14 +264,14 @@ pub fn IND() u8 {
         return 0;
     }
 
-    addressAbs = (@as(u16, read(@addWithOverflow(ptr, 1)[0])) << 8) | read(ptr);
+    addressAbs = (@as(u16, read(ptr +% 1)) << 8) | read(ptr);
 
     return 0;
 }
 /// indirect x
 pub fn IZX() u8 {
     const t: u16 = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const lo: u16 = read((t + xReg) & 0x00ff);
     const hi: u16 = read((t + xReg + 1) & 0x00ff);
@@ -282,14 +282,14 @@ pub fn IZX() u8 {
 /// indirect y
 pub fn IZY() u8 {
     const t: u16 = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     const lo: u16 = read(t & 0x00ff);
     const hi: u16 = read((t + 1) & 0x00ff);
 
     addressAbs = (hi << 8) | lo;
 
-    addressAbs = @addWithOverflow(addressAbs, yReg)[0];
+    addressAbs +%= yReg;
 
     if (addressAbs & 0xff00 != hi << 8) return 1;
 
@@ -298,7 +298,7 @@ pub fn IZY() u8 {
 /// relative
 pub fn REL() u8 {
     addressRel = read(ProgramCounter);
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     if (addressRel & 0x80 != 0) {
         addressRel |= 0xff00;
@@ -358,7 +358,7 @@ pub fn BCC() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -375,7 +375,7 @@ pub fn BCS() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -392,7 +392,7 @@ pub fn BEQ() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -418,7 +418,7 @@ pub fn BMI() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -435,7 +435,7 @@ pub fn BNE() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -452,7 +452,7 @@ pub fn BPL() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -464,19 +464,19 @@ pub fn BPL() u8 {
 }
 /// break
 pub fn BRK() u8 {
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
 
     statusReg.I = true;
 
     write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
     write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     statusReg.B = true;
 
     write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     statusReg.B = false;
 
@@ -492,7 +492,7 @@ pub fn BVC() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -509,7 +509,7 @@ pub fn BVS() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs = @addWithOverflow(ProgramCounter, addressRel)[0];
+    addressAbs +%= addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -542,7 +542,7 @@ pub fn CLV() u8 {
 /// compare accumulator
 pub fn CMP() u8 {
     fetch();
-    const result: u16 = @subWithOverflow(@as(u16, accumulator), @as(u16, fetched))[0];
+    const result: u16 = accumulator -% fetched;
 
     statusReg.C = accumulator >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -553,7 +553,7 @@ pub fn CMP() u8 {
 /// compare xReg
 pub fn CPX() u8 {
     fetch();
-    const result: u16 = @subWithOverflow(@as(u16, xReg), @as(u16, fetched))[0];
+    const result: u16 = xReg -% fetched;
 
     statusReg.C = xReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -563,7 +563,7 @@ pub fn CPX() u8 {
 /// compare yReg
 pub fn CPY() u8 {
     fetch();
-    const result: u16 = @subWithOverflow(@as(u16, yReg), @as(u16, fetched))[0];
+    const result: u16 = yReg -% fetched;
 
     statusReg.C = yReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -574,7 +574,7 @@ pub fn CPY() u8 {
 pub fn DEC() u8 {
     fetch();
 
-    const result: u8 = @subWithOverflow(fetched, 1)[0];
+    const result: u8 = fetched -% 1;
     write(addressAbs, result);
 
     statusReg.Z = result == 0;
@@ -583,7 +583,7 @@ pub fn DEC() u8 {
 }
 /// decrement xReg
 pub fn DEX() u8 {
-    xReg = @subWithOverflow(xReg, 1)[0];
+    xReg -%= 1;
 
     statusReg.Z = xReg == 0;
     statusReg.N = xReg & 0x80 != 0;
@@ -591,7 +591,7 @@ pub fn DEX() u8 {
 }
 /// decrement yReg
 pub fn DEY() u8 {
-    yReg = @subWithOverflow(yReg, 1)[0];
+    yReg -%= 1;
 
     statusReg.Z = yReg == 0;
     statusReg.N = yReg & 0x80 != 0;
@@ -609,7 +609,7 @@ pub fn EOR() u8 {
 /// increment memory
 pub fn INC() u8 {
     fetch();
-    const result: u8 = @addWithOverflow(fetched, 1)[0];
+    const result: u8 = fetched +% 1;
 
     write(addressAbs, result);
 
@@ -619,7 +619,7 @@ pub fn INC() u8 {
 }
 /// increment xReg
 pub fn INX() u8 {
-    xReg = @addWithOverflow(xReg, 1)[0];
+    xReg +%= 1;
 
     statusReg.Z = xReg == 0;
     statusReg.N = xReg & 0x80 != 0;
@@ -627,7 +627,7 @@ pub fn INX() u8 {
 }
 /// increment yReg
 pub fn INY() u8 {
-    yReg = @addWithOverflow(yReg, 1)[0];
+    yReg +%= 1;
 
     statusReg.Z = yReg == 0;
     statusReg.N = yReg & 0x80 != 0;
@@ -635,21 +635,17 @@ pub fn INY() u8 {
 }
 /// jump
 pub fn JMP() u8 {
-
-    // @import("root").dumpVirtualMemory() catch {};
-
-    // std.process.exit(0);
     ProgramCounter = addressAbs;
     return 0;
 }
 /// jump to subroutine
 pub fn JSR() u8 {
-    ProgramCounter = @subWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter -%= 1;
 
     write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
     write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     ProgramCounter = addressAbs;
     return 0;
@@ -720,7 +716,7 @@ pub fn ORA() u8 {
 /// push accumulator to stack
 pub fn PHA() u8 {
     write(0x0100 + @as(u16, stackPtr), accumulator);
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     return 0;
 }
@@ -732,13 +728,13 @@ pub fn PHP() u8 {
     statusReg.B = false;
     statusReg.U = false;
 
-    stackPtr = @subWithOverflow(stackPtr, 1)[0];
+    stackPtr -%= 1;
 
     return 0;
 }
 /// pop accumulator from stack
 pub fn PLA() u8 {
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
 
     accumulator = read(0x0100 + @as(u16, stackPtr));
     statusReg.Z = accumulator == 0;
@@ -748,7 +744,7 @@ pub fn PLA() u8 {
 }
 /// pop processor status from stack
 pub fn PLP() u8 {
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
 
     statusReg = @bitCast(read(0x0100 + @as(u16, stackPtr)));
     statusReg.U = true;
@@ -791,28 +787,28 @@ pub fn ROR() u8 {
 }
 /// return from interupt
 pub fn RTI() u8 {
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
     statusReg = @bitCast(read(0x0100 + @as(u16, stackPtr)));
     statusReg.B = false;
     statusReg.U = false;
 
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
     ProgramCounter = read(0x0100 + @as(u16, stackPtr));
 
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
     ProgramCounter |= @as(u16, read(0x0100 + @as(u16, stackPtr))) << 8;
 
     return 0;
 }
 /// return from subroutine
 pub fn RTS() u8 {
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
     ProgramCounter = read(0x0100 + @as(u16, stackPtr));
 
-    stackPtr = @addWithOverflow(stackPtr, 1)[0];
+    stackPtr +%= 1;
     ProgramCounter |= @as(u16, read(0x0100 + @as(u16, stackPtr))) << 8;
 
-    ProgramCounter = @addWithOverflow(ProgramCounter, 1)[0];
+    ProgramCounter +%= 1;
     return 0;
 }
 /// carry subtract
@@ -976,12 +972,12 @@ pub fn ARR() u8 {
 pub fn DCP() u8 {
     fetch();
 
-    const result = @subWithOverflow(fetched, 1);
-    write(addressAbs, result[0]);
+    const result = fetched -% 1;
+    write(addressAbs, result);
 
-    const cmp: u8 = @subWithOverflow(accumulator, result[0])[0];
+    const cmp: u8 = accumulator -% result;
 
-    statusReg.C = cmp >= result[0] or result[1] == 1;
+    statusReg.C = cmp >= result or result == -%1;
     statusReg.Z = cmp == 0;
     statusReg.N = cmp & 0x80 != 0;
     return 0;
@@ -990,7 +986,7 @@ pub fn DCP() u8 {
 pub fn ISC() u8 {
     fetch();
 
-    const inc: u8 = @addWithOverflow(fetched, 1)[0];
+    const inc: u8 = fetched +% 1;
     write(addressAbs, inc);
 
     const val: u16 = @as(u16, inc) ^ 0x00ff;
@@ -1080,7 +1076,7 @@ pub fn SAX() u8 {
 pub fn SBX() u8 {
     fetch();
 
-    const result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(@addWithOverflow(fetched, 1)[0]);
+    const result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(fetched +% 1);
     xReg = @truncate(result);
 
     statusReg.C = result > 0xff;
