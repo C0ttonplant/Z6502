@@ -375,7 +375,7 @@ pub fn BCS() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= ProgramCounter +% addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -542,7 +542,7 @@ pub fn CLV() u8 {
 /// compare accumulator
 pub fn CMP() u8 {
     fetch();
-    const result: u16 = accumulator -% fetched;
+    const result: u16 = @as(u16, accumulator) -% fetched;
 
     statusReg.C = accumulator >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -553,7 +553,7 @@ pub fn CMP() u8 {
 /// compare xReg
 pub fn CPX() u8 {
     fetch();
-    const result: u16 = xReg -% fetched;
+    const result: u16 = @as(u16, xReg) -% fetched;
 
     statusReg.C = xReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
@@ -563,7 +563,7 @@ pub fn CPX() u8 {
 /// compare yReg
 pub fn CPY() u8 {
     fetch();
-    const result: u16 = yReg -% fetched;
+    const result: u16 = @as(u16, yReg) -% fetched;
 
     statusReg.C = yReg >= fetched;
     statusReg.Z = result & 0x00ff == 0;
