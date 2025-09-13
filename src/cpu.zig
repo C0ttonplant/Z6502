@@ -29,7 +29,7 @@ pub fn clock() void {
     if (cycles == 0) {
         opCode = read(ProgramCounter);
 
-        // std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount});
+        // std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{ LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount });
         ProgramCounter +%= 1;
 
         var instr: *Instruction = &LOOKUP[opCode];
@@ -41,7 +41,7 @@ pub fn clock() void {
 
         cycles += (additionalCycle1 & additionalCycle2);
 
-        // std.time.sleep(100_000_000);
+        // std.Thread.sleep(100_000_000);
     }
 
     clockCount += 1;
@@ -358,7 +358,7 @@ pub fn BCC() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -375,7 +375,7 @@ pub fn BCS() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs +%= ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -392,7 +392,7 @@ pub fn BEQ() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -418,7 +418,7 @@ pub fn BMI() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -435,7 +435,7 @@ pub fn BNE() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -452,7 +452,7 @@ pub fn BPL() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -492,7 +492,7 @@ pub fn BVC() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
@@ -509,7 +509,7 @@ pub fn BVS() u8 {
     // branch instructions directly add clock cycles
     cycles += 1;
 
-    addressAbs +%= addressRel;
+    addressAbs = ProgramCounter +% addressRel;
 
     if (addressAbs & 0xff00 != ProgramCounter & 0xff00) {
         cycles += 1;
