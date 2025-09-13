@@ -6,4 +6,4 @@
 - supports most illegal opCodes
 - does not support unstable opCodes
 - decimal mode working
-- works with zig version 0.13.0 and 0.14.0
+- works with zig version 0.15.1
