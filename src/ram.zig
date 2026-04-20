@@ -18,7 +18,7 @@ pub fn ram(offsetStart: u16, offsetEnd: u16) type {
 
         /// read from memory onto bus
         pub fn read(addr: u16) u8 {
-            if (addr <= startOffset or addr >= endOffset) return 0;
+            if (addr < startOffset or addr > endOffset) return 0;
             return data[addr - startOffset];
         }
 
