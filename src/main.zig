@@ -4,10 +4,14 @@ const fs = std.fs;
 const cpu_6502 = @import("cpu.zig");
 const bus = @import("bus.zig");
 
-var program = @embedFile("test_official.bin");
+var program = @embedFile("test_printing.bin");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
+
     @memcpy(&bus.sysRam.data, program);
+    defer bus.sysRam.dumpVirtualMemory(io, gpa) catch {};
 
     std.debug.print("begin\n", .{});
 

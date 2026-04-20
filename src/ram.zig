@@ -28,9 +28,9 @@ pub fn ram(offsetStart: u16, offsetEnd: u16) type {
             data[addr - startOffset] = dat;
         }
 
-        pub fn dumpVirtualMemory() !void {
-            var cwd = fs.cwd();
-
+        pub fn dumpVirtualMemory(io: std.Io, gpa: std.mem.Allocator) !void {
+            var cwd = try std.process.currentPathAlloc(io, gpa);
+            defer std.heap.page_allocator.free(cwd.ptr);
             var f = try cwd.createFile("vMemory.bin", .{});
             defer f.close();
 

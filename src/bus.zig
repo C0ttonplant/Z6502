@@ -6,10 +6,11 @@ pub const sysRam = ram.ram(0, 0xffff);
 
 /// write data onto bus
 pub fn write(addr: u16, dat: u8) void {
-    if (addr == 0xf0) {
-        std.debug.print("{c}", .{dat});
+    switch (addr) {
+        0...0xEF => sysRam.write(addr, dat),
+        0xF0 => std.debug.print("{c}", .{dat}),
+        0xF1...0xFFFF => sysRam.write(addr, dat),
     }
-    sysRam.write(addr, dat);
 }
 
 /// read data from bus

@@ -914,7 +914,6 @@ pub fn XXX() u8 {
 /// (illegal opcode), immediatly closes program
 pub fn JAM() u8 {
     std.debug.print("Execution stopped by bad instruction: {x:0>2}\n", .{opCode});
-    bus.sysRam.dumpVirtualMemory() catch {};
     std.process.exit(0);
     return 0;
 }
