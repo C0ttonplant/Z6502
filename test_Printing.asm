@@ -1,12 +1,7 @@
-    PROCESSOR 6502
-
-    .org $0000
-    .word
-    .org $7FFE
+*   = $8000
     
 Start:
-    LDX #$1
-    ASL
+    LDX #$FF
 loop:
     INX
     LDY str,X
@@ -16,9 +11,9 @@ loop:
     STY printAddr
     BRK
 
-printAddr = #$00f0
-str: .byte "hello, world!", 0
+printAddr = $00F0
+str: .text "hello, world!", 0
 
-    .org $fffa
-    .word $8000
-    .word $8000
+*   = $FFFC
+    .word Start 
+    .word Start 
