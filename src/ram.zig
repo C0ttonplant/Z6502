@@ -28,18 +28,12 @@ pub fn ram(offsetStart: u16, offsetEnd: u16) type {
             data[addr - startOffset] = dat;
         }
 
-        pub fn dumpVirtualMemory(io: std.Io, gpa: std.mem.Allocator) !void {
-            var cwd = try std.process.currentPathAlloc(io, gpa);
-            defer std.heap.page_allocator.free(cwd.ptr);
-            var f = try cwd.createFile("vMemory.bin", .{});
-            defer f.close();
+        pub fn dumpVirtualMemory(io: std.Io, path: []const u8) !void {
+            var b: [1024]u8 = std.mem.zeroes([1024]u8);
 
-            try f.writeAll(&data);
-
-            // for (0..0x10000) |i|
-            // {
-            //     _ = try f.write(&[1]u8{cpu_6502.read(@intCast(i))});
-            // }
+            var file: std.Io.File = try std.Io.Dir.cwd().createFile(io, path, .{});
+            var writer = file.writer(io, &b);
+            try writer.interface.writeAll(&data);
         }
     };
 }

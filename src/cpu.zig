@@ -3,33 +3,37 @@ const std = @import("std");
 const cpu_6502 = @This();
 const bus = @import("bus.zig");
 pub var clockCount: u128 = 0;
+pub var debug: bool = false;
+pub var exitOnBreak: bool = false;
 
 // internal variables
-pub var accumulator: u8 = 0;
-pub var xReg: u8 = 0;
-pub var yReg: u8 = 0;
-pub var stackPtr: u8 = 0x0;
-pub var ProgramCounter: u16 = 0;
-pub var statusReg: StatusRegister = .{};
+var accumulator: u8 = 0;
+var xReg: u8 = 0;
+var yReg: u8 = 0;
+var stackPtr: u8 = 0x0;
+var ProgramCounter: u16 = 0;
+var statusReg: StatusRegister = .{};
 
 // helper variables
 /// current working addres
-pub var addressAbs: u16 = 0;
+var addressAbs: u16 = 0;
 /// jump address
-pub var addressRel: u16 = 0;
+var addressRel: u16 = 0;
 /// current executing opCode
-pub var opCode: u8 = 0;
+var opCode: u8 = 0;
 /// last fetched data
-pub var fetched: u8 = 0;
+var fetched: u8 = 0;
 /// cycles remaining for instruction
-pub var cycles: u8 = 0;
+var cycles: u8 = 0;
 
 /// iterate the cpu for one cycle
 pub fn clock() void {
     if (cycles == 0) {
         opCode = read(ProgramCounter);
+        if (debug) {
+            std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{ LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount });
+        }
 
-        // std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{ LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount });
         ProgramCounter +%= 1;
 
         var instr: *Instruction = &LOOKUP[opCode];
@@ -482,7 +486,9 @@ pub fn BRK() u8 {
 
     ProgramCounter = (@as(u16, read(0xFFFF)) << 8) | read(0xFFFE);
 
-    std.process.exit(0);
+    if (exitOnBreak) {
+        std.process.exit(0);
+    }
     return 0;
 }
 /// branch if overflow clear
@@ -960,7 +966,7 @@ pub fn ARR() u8 {
     statusReg.Z = tmp & 0x00ff == 0;
     statusReg.N = tmp & 0x80 == 0x80;
 
-    // TODO: more reaserch, this is simply a guess on what i think is supposed to happen
+    // TODO: more research, this is simply a guess on what i think is supposed to happen
     statusReg.V = (~((accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) != 0;
 
     accumulator = @truncate(tmp);
