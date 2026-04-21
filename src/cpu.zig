@@ -27,7 +27,7 @@ var fetched: u8 = 0;
 var cycles: u8 = 0;
 
 /// iterate the cpu for one cycle
-pub fn clock() void {
+pub fn clock() bool {
     if (cycles == 0) {
         opCode = read(ProgramCounter);
         if (debug) {
@@ -43,13 +43,15 @@ pub fn clock() void {
         const additionalCycle1: u8 = instr.AddrMode();
         const additionalCycle2: u8 = instr.Operator();
 
+        if (exitOnBreak and instr.Operator == &BRK) {
+            return false;
+        }
         cycles += (additionalCycle1 & additionalCycle2);
-
-        // std.Thread.sleep(100_000_000);
     }
 
     clockCount += 1;
     cycles -= 1;
+    return true;
 }
 
 /// reset cpu (does not clear memory)
@@ -486,9 +488,6 @@ pub fn BRK() u8 {
 
     ProgramCounter = (@as(u16, read(0xFFFF)) << 8) | read(0xFFFE);
 
-    if (exitOnBreak) {
-        std.process.exit(0);
-    }
     return 0;
 }
 /// branch if overflow clear

@@ -1,8 +1,10 @@
 const std = @import("std");
-const fs = std.fs;
-
-const cpu_6502 = @import("cpu.zig");
+const cpu = @import("cpu.zig");
 const bus = @import("bus.zig");
+
+var shouldDump: bool = false;
+var dumpPath: []const u8 = undefined;
+var time: u64 = 0;
 
 fn loadBin(io: std.Io, path: []const u8) !void {
     var f: std.Io.File = try std.Io.Dir.openFile(std.Io.Dir.cwd(), io, path, .{});
@@ -14,6 +16,18 @@ fn loadBin(io: std.Io, path: []const u8) !void {
 }
 
 fn parseArgs(io: std.Io, args: std.process.Args) !void {
+    if (args.vector.len == 1) {
+        try std.Io.File.stdout().writeStreamingAll(io,
+            \\Commands:
+            \\  -b --bin [file]   The executable binary to run
+            \\  -D --dump [file]  Dump memory to file
+            \\  -n --nano [uint]  Time in nanoseconds per cpu clock
+            \\  -d --debug        Print the processor status
+            \\  -B --break        Stop execution apon hitting the BRK instruction
+            \\
+        );
+        std.process.exit(0);
+    }
     var i = args.iterate();
     _ = i.next();
     while (i.next()) |a| {
@@ -22,17 +36,23 @@ fn parseArgs(io: std.Io, args: std.process.Args) !void {
         } else if (std.mem.eql(u8, a, "-b")) {
             try loadBin(io, i.next() orelse continue);
         } else if (std.mem.eql(u8, a, "--dump")) {
-            bus.sysRam.dumpVirtualMemory(io, i.next() orelse continue) catch {};
+            shouldDump = true;
+            dumpPath = i.next() orelse continue;
         } else if (std.mem.eql(u8, a, "-D")) {
-            bus.sysRam.dumpVirtualMemory(io, i.next() orelse continue) catch {};
+            shouldDump = true;
+            dumpPath = i.next() orelse continue;
         } else if (std.mem.eql(u8, a, "--debug")) {
-            cpu_6502.debug = true;
+            cpu.debug = true;
         } else if (std.mem.eql(u8, a, "-d")) {
-            cpu_6502.debug = true;
+            cpu.debug = true;
         } else if (std.mem.eql(u8, a, "--break")) {
-            cpu_6502.exitOnBreak = true;
+            cpu.exitOnBreak = true;
         } else if (std.mem.eql(u8, a, "-B")) {
-            cpu_6502.exitOnBreak = true;
+            cpu.exitOnBreak = true;
+        } else if (std.mem.eql(u8, a, "--nano")) {
+            time = try std.fmt.parseInt(u64, i.next() orelse continue, 10);
+        } else if (std.mem.eql(u8, a, "-n")) {
+            time = try std.fmt.parseInt(u64, i.next() orelse continue, 10);
         } else {
             std.debug.print("Invalid argument {s}\n", .{a});
             std.process.exit(1);
@@ -45,11 +65,15 @@ pub fn main(init: std.process.Init) !void {
 
     try parseArgs(io, init.minimal.args);
 
-    std.debug.print("begin\n", .{});
+    cpu.reset();
 
-    cpu_6502.reset();
+    while (cpu.clock()) {
+        if (time != 0) {
+            try io.sleep(.{ .nanoseconds = time }, .real);
+        }
+    }
 
-    while (true) {
-        cpu_6502.clock();
+    if (shouldDump) {
+        try bus.sysRam.dumpVirtualMemory(io, dumpPath);
     }
 }
