@@ -31,7 +31,7 @@ pub fn clock() bool {
     if (cycles == 0) {
         opCode = read(ProgramCounter);
         if (debug) {
-            std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, cycles {d}\n", .{ LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, clockCount });
+            std.debug.print("{s}, {s}, op {x:0>2}, pc {x:0>4}, a {x:0>2}, x {x:0>2}, y {x:0>2}, SP {x:0>2}, NVUBDIZC {b:0>8}, cycles {d}\n", .{ LOOKUP[opCode].Name, getAddrString(LOOKUP[opCode]), opCode, ProgramCounter, accumulator, xReg, yReg, stackPtr, @as(u8, @bitCast(statusReg)), clockCount });
         }
 
         ProgramCounter +%= 1;
@@ -58,15 +58,12 @@ pub fn clock() bool {
 pub fn reset() void {
     addressAbs = 0xFFFC;
 
-    const lo: u16 = @as(u16, @intCast(read(addressAbs + 0))) << 0;
-    const hi: u16 = @as(u16, @intCast(read(addressAbs + 1))) << 8;
-
-    ProgramCounter = hi | lo;
+    ProgramCounter = readu16(addressAbs);
 
     accumulator = 0;
     xReg = 0;
     yReg = 0;
-    stackPtr = 0xFC;
+    stackPtr = 0xFF;
     statusReg = .{ .U = true };
 
     addressAbs = 0;
@@ -79,32 +76,26 @@ pub fn reset() void {
 pub fn irq() void {
     if (statusReg.I) return;
 
-    write(0x0100 + stackPtr, @truncate(ProgramCounter >> 8));
     stackPtr -%= 1;
-
-    write(0x0100 + stackPtr, @truncate(ProgramCounter));
+    writeu16(0x100 + stackPtr, ProgramCounter);
     stackPtr -%= 1;
 
     statusReg.B = false;
     statusReg.U = true;
     statusReg.I = true;
 
-    write(0x0100 + stackPtr, @bitCast(statusReg));
+    write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
     stackPtr -%= 1;
 
     addressAbs = 0xFFFE;
-    const lo: u16 = read(addressAbs);
-    const hi: u16 = read(addressAbs + 1) << 8;
-    ProgramCounter = hi | lo;
+    ProgramCounter = readu16(addressAbs);
 
     cycles = 7;
 }
 /// non mutable interupt request
 pub fn nmi() void {
-    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
     stackPtr -%= 1;
-
-    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
+    writeu16(0x0100 + @as(u16, stackPtr), ProgramCounter);
     stackPtr -%= 1;
 
     statusReg.B = false;
@@ -115,9 +106,7 @@ pub fn nmi() void {
     stackPtr -%= 1;
 
     addressAbs = 0xFFFA;
-    const lo: u16 = read(addressAbs);
-    const hi: u16 = @as(u16, read(addressAbs + 1)) << 8;
-    ProgramCounter = hi | lo;
+    ProgramCounter = readu16(addressAbs);
 
     cycles = 8;
 }
@@ -125,32 +114,25 @@ pub fn nmi() void {
 pub fn read(addr: u16) u8 {
     return bus.read(addr, false);
 }
+/// read u16 from bus
+pub fn readu16(addr: u16) u16 {
+    const hi: u16 = bus.read(addr + 1, false);
+    return hi << 8 | bus.read(addr, false);
+}
 /// write to bus
 pub fn write(addr: u16, dat: u8) void {
     bus.write(addr, dat);
 }
+/// write u16 to bus
+pub fn writeu16(addr: u16, dat: u16) void {
+    bus.write(addr + 1, @truncate(dat >> 8));
+    bus.write(addr, @truncate(dat & 0xff));
+}
 /// helper function to convert to BCD
 fn toBCD(val: u8) u8 {
-    // this function simply finds the nearest valid bcd value
-    var top: u4 = @truncate(val >> 4);
-    var bot: u4 = @truncate(val);
-
-    top %= 10;
-
-    if (bot > 9) {
-        bot -= 10;
-        top = (top + 1) % 10;
-    }
-
-    return @as(u8, @intCast(top)) << 4 | bot;
-}
-
-test "BCD" {
-    try std.testing.expectEqual(0x10, toBCD(0x10));
-    try std.testing.expectEqual(0x19, toBCD(0x19));
-    try std.testing.expectEqual(0x20, toBCD(0x1A));
-    try std.testing.expectEqual(0x25, toBCD(0x1F));
-    try std.testing.expectEqual(0x65, toBCD(0xFF));
+    // TODO: impl
+    _ = val;
+    return 0;
 }
 
 /// helper function to get the string of the addressing mode
@@ -168,6 +150,11 @@ pub fn getAddrString(instr: Instruction) []const u8 {
     if (instr.AddrMode == &ZPX) return "ZPX";
     if (instr.AddrMode == &ZPY) return "ZPY";
     return "XXX";
+}
+
+/// helper function to get overflow
+pub fn overflow(a: u8, b: u8, c: u8) bool {
+    return (a ^ b) & (a ^ c) & 0x80 != 0;
 }
 
 /// gets the correct data for the addressing mode
@@ -193,111 +180,89 @@ pub fn IMM() u8 {
 pub fn ZP0() u8 {
     addressAbs = read(ProgramCounter);
     ProgramCounter +%= 1;
-    addressAbs &= 0x00ff;
+    addressAbs &= 0xff;
     return 0;
 }
 /// zero page x
 pub fn ZPX() u8 {
     addressAbs = read(ProgramCounter) +% xReg;
     ProgramCounter +%= 1;
-    addressAbs &= 0x00ff;
+    addressAbs &= 0xff;
     return 0;
 }
 /// zero page y
 pub fn ZPY() u8 {
     addressAbs = read(ProgramCounter) +% yReg;
     ProgramCounter +%= 1;
-    addressAbs &= 0x00ff;
+    addressAbs &= 0xff;
     return 0;
 }
 /// absolute
 pub fn ABS() u8 {
-    const lo: u16 = read(ProgramCounter);
-    ProgramCounter +%= 1;
-
-    const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
-    ProgramCounter +%= 1;
-
-    addressAbs = hi | lo;
-
+    addressAbs = readu16(ProgramCounter);
+    ProgramCounter +%= 2;
     return 0;
 }
 /// absolute x
 pub fn ABX() u8 {
-    const lo: u16 = read(ProgramCounter);
-    ProgramCounter +%= 1;
+    addressAbs = readu16(ProgramCounter);
+    const tmp = addressAbs;
+    ProgramCounter +%= 2;
 
-    const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
-    ProgramCounter +%= 1;
-
-    addressAbs = hi | lo;
     addressAbs +%= xReg;
 
     // returns extra cycle if the reg goes over the page
-    if (addressAbs & 0xff00 != hi) return 1;
+    if (addressAbs & 0xff00 != tmp & 0xff00) return 1;
 
     return 0;
 }
 /// absolute y
 pub fn ABY() u8 {
-    const lo: u16 = read(ProgramCounter);
-    ProgramCounter +%= 1;
+    addressAbs = readu16(ProgramCounter);
+    const tmp = addressAbs;
+    ProgramCounter +%= 2;
 
-    const hi: u16 = @as(u16, @intCast(read(ProgramCounter))) << 8;
-    ProgramCounter +%= 1;
-
-    addressAbs = hi | lo;
     addressAbs +%= yReg;
 
     // returns extra cycle if the reg goes over the page
-    if (addressAbs & 0xff00 != hi) return 1;
+    if (addressAbs & 0xff00 != tmp & 0xff00) return 1;
 
     return 0;
 }
 /// indirect
 pub fn IND() u8 {
-    const lo: u16 = read(ProgramCounter);
-    ProgramCounter +%= 1;
-
-    const hi: u16 = @as(u16, read(ProgramCounter)) << 8;
-    ProgramCounter +%= 1;
-
-    const ptr: u16 = hi | lo;
+    const ptr = readu16(ProgramCounter);
+    ProgramCounter +%= 2;
 
     // simulate 6502 hardware bug
-    if (lo == 0x00ff) {
+    if (ptr & 0xff == 0xff) {
         addressAbs = (@as(u16, read(ptr & 0xff00)) << 8) | read(ptr);
         return 0;
     }
 
-    addressAbs = (@as(u16, read(ptr +% 1)) << 8) | read(ptr);
-
+    addressAbs = readu16(ptr);
     return 0;
 }
 /// indirect x
 pub fn IZX() u8 {
-    const t: u16 = read(ProgramCounter);
+    const t: u8 = read(ProgramCounter);
     ProgramCounter +%= 1;
 
-    const lo: u16 = read((t + xReg) & 0x00ff);
-    const hi: u16 = read((t + xReg + 1) & 0x00ff);
+    const lo: u16 = read((t +% xReg) & 0x00ff);
+    const hi: u16 = read((t +% xReg +% 1) & 0x00ff);
 
     addressAbs = (hi << 8) | lo;
     return 0;
 }
 /// indirect y
 pub fn IZY() u8 {
-    const t: u16 = read(ProgramCounter);
+    const t: u8 = read(ProgramCounter);
     ProgramCounter +%= 1;
 
-    const lo: u16 = read(t & 0x00ff);
-    const hi: u16 = read((t + 1) & 0x00ff);
+    const lo: u16 = read(t);
+    const hi: u16 = read(t +% 1);
 
-    addressAbs = (hi << 8) | lo;
-
-    addressAbs +%= yReg;
-
-    if (addressAbs & 0xff00 != hi << 8) return 1;
+    addressAbs = ((hi << 8) | lo) +% yReg;
 
     return 0;
 }
@@ -327,34 +292,35 @@ pub fn AND() u8 {
 }
 /// add carry
 pub fn ADC() u8 {
+    // TODO: add decimal mode
     fetch();
 
-    const tmp: u16 = @as(u16, accumulator) + @as(u16, fetched) + @as(u16, @intFromBool(statusReg.C));
-    const result: u16 = if (statusReg.D) toBCD(@truncate(tmp)) else @truncate(tmp);
+    const tmp: u8 = accumulator +% fetched +% @intFromBool(statusReg.C);
 
-    // TODO: test if this is the proper method for decimal mode
-    statusReg.C = tmp > if (statusReg.D) @as(u8, 0x99) else 0xFF;
-    statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 != 0;
-    statusReg.V = ((~(accumulator ^ fetched) & (accumulator ^ tmp)) & 0x80) != 0;
+    statusReg.C = tmp <= accumulator;
+    statusReg.Z = tmp == 0;
+    statusReg.N = tmp & 0x80 != 0;
+    statusReg.V = overflow(~accumulator, fetched, ~tmp);
 
-    accumulator = @truncate(result);
+    accumulator = tmp;
 
     return 1;
 }
 /// logical shift left (carry <- data <- void)
 pub fn ASL() u8 {
     fetch();
-    const tmp: u16 = @as(u16, fetched) << 1;
+
+    const tmp: u8 = fetched << 1;
+
     statusReg.C = fetched & 0x80 != 0;
-    statusReg.Z = tmp & 0xff == 0;
+    statusReg.Z = tmp == 0;
     statusReg.N = tmp & 0x80 != 0;
 
     if (LOOKUP[opCode].AddrMode == &IMP) {
-        accumulator = @truncate(tmp);
+        accumulator = tmp;
         return 0;
     }
-    write(addressAbs, @truncate(tmp));
+    write(addressAbs, tmp);
     return 0;
 }
 /// branch if carry clear
@@ -472,13 +438,11 @@ pub fn BPL() u8 {
 pub fn BRK() u8 {
     ProgramCounter +%= 1;
 
+    stackPtr -%= 1;
+    writeu16(0x0100 + @as(u16, stackPtr), ProgramCounter);
+    stackPtr -%= 1;
+
     statusReg.I = true;
-
-    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
-    stackPtr -%= 1;
-    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
-    stackPtr -%= 1;
-
     statusReg.B = true;
 
     write(0x0100 + @as(u16, stackPtr), @bitCast(statusReg));
@@ -486,7 +450,7 @@ pub fn BRK() u8 {
 
     statusReg.B = false;
 
-    ProgramCounter = (@as(u16, read(0xFFFF)) << 8) | read(0xFFFE);
+    ProgramCounter = readu16(0xFFFE);
 
     return 0;
 }
@@ -547,32 +511,32 @@ pub fn CLV() u8 {
 /// compare accumulator
 pub fn CMP() u8 {
     fetch();
-    const result: u16 = @as(u16, accumulator) -% fetched;
+    const result: u8 = accumulator -% fetched;
 
     statusReg.C = accumulator >= fetched;
-    statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 != 0;
+    statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 != 0;
 
     return 1;
 }
 /// compare xReg
 pub fn CPX() u8 {
     fetch();
-    const result: u16 = @as(u16, xReg) -% fetched;
+    const result: u8 = xReg -% fetched;
 
     statusReg.C = xReg >= fetched;
-    statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 != 0;
+    statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 != 0;
     return 0;
 }
 /// compare yReg
 pub fn CPY() u8 {
     fetch();
-    const result: u16 = @as(u16, yReg) -% fetched;
+    const result: u8 = yReg -% fetched;
 
     statusReg.C = yReg >= fetched;
-    statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 != 0;
+    statusReg.Z = result == 0;
+    statusReg.N = result & 0x80 != 0;
     return 0;
 }
 /// decrement memory
@@ -647,9 +611,8 @@ pub fn JMP() u8 {
 pub fn JSR() u8 {
     ProgramCounter -%= 1;
 
-    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter >> 8));
     stackPtr -%= 1;
-    write(0x0100 + @as(u16, stackPtr), @truncate(ProgramCounter));
+    writeu16(0x0100 + @as(u16, stackPtr), ProgramCounter);
     stackPtr -%= 1;
 
     ProgramCounter = addressAbs;
@@ -688,11 +651,11 @@ pub fn LDY() u8 {
 /// logical shift right (void -> data -> carry)
 pub fn LSR() u8 {
     fetch();
-    statusReg.C = fetched & 1 == 1;
-
     const tmp: u8 = fetched >> 1;
+
+    statusReg.C = fetched & 1 == 1;
     statusReg.Z = tmp == 0;
-    statusReg.N = tmp & 0x80 != 0;
+    statusReg.N = false;
 
     if (LOOKUP[opCode].AddrMode == &IMP) {
         accumulator = tmp;
@@ -760,34 +723,34 @@ pub fn PLP() u8 {
 pub fn ROL() u8 {
     fetch();
 
-    const tmp: u16 = (@as(u16, fetched) << 1) | @as(u16, @intFromBool(statusReg.C));
+    const tmp: u8 = fetched << 1 | @intFromBool(statusReg.C);
 
-    statusReg.C = tmp & 0xff00 != 0;
-    statusReg.Z = tmp & 0x00ff == 0;
+    statusReg.C = fetched & 0x80 != 0;
+    statusReg.Z = tmp == 0;
     statusReg.N = tmp & 0x80 != 0;
 
     if (LOOKUP[opCode].AddrMode == &IMP) {
-        accumulator = @truncate(tmp);
+        accumulator = tmp;
         return 0;
     }
-    write(addressAbs, @truncate(tmp));
+    write(addressAbs, tmp);
     return 0;
 }
 /// rotate bits right (carry -> data -> carry)
 pub fn ROR() u8 {
     fetch();
 
-    const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
+    const tmp: u8 = @as(u8, @intFromBool(statusReg.C)) << 7 | fetched >> 1;
 
     statusReg.C = fetched & 1 == 1;
-    statusReg.Z = tmp & 0x00ff == 0;
+    statusReg.Z = tmp == 0;
     statusReg.N = tmp & 0x80 != 0;
 
     if (LOOKUP[opCode].AddrMode == &IMP) {
-        accumulator = @truncate(tmp);
+        accumulator = tmp;
         return 0;
     }
-    write(addressAbs, @truncate(tmp));
+    write(addressAbs, tmp);
     return 0;
 }
 /// return from interupt
@@ -798,39 +761,33 @@ pub fn RTI() u8 {
     statusReg.U = false;
 
     stackPtr +%= 1;
-    ProgramCounter = read(0x0100 + @as(u16, stackPtr));
-
+    ProgramCounter = readu16(0x0100 + @as(u16, stackPtr));
     stackPtr +%= 1;
-    ProgramCounter |= @as(u16, read(0x0100 + @as(u16, stackPtr))) << 8;
 
     return 0;
 }
 /// return from subroutine
 pub fn RTS() u8 {
     stackPtr +%= 1;
-    ProgramCounter = read(0x0100 + @as(u16, stackPtr));
-
+    ProgramCounter = readu16(0x0100 + @as(u16, stackPtr));
     stackPtr +%= 1;
-    ProgramCounter |= @as(u16, read(0x0100 + @as(u16, stackPtr))) << 8;
 
     ProgramCounter +%= 1;
     return 0;
 }
 /// carry subtract
 pub fn SBC() u8 {
+    // TODO: add decimal mode
     fetch();
 
-    const val: u16 = @as(u16, fetched) ^ 0x00ff;
+    const tmp: u8 = accumulator +% ~fetched +% @intFromBool(statusReg.C);
 
-    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C)) - if (statusReg.D) @as(u16, 0x66) else 0;
-    const result: u8 = if (statusReg.D) toBCD(@truncate(tmp)) else @truncate(tmp);
+    statusReg.C = tmp < accumulator;
+    statusReg.Z = tmp == 0;
+    statusReg.N = tmp & 0x80 != 0;
+    statusReg.V = overflow(tmp, ~fetched, accumulator);
 
-    statusReg.C = tmp & 0xff00 != 0;
-    statusReg.Z = result == 0;
-    statusReg.N = result & 0x80 != 0;
-    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (val)) & 0x80) != 0;
-
-    accumulator = result;
+    accumulator = tmp;
 
     return 1;
 }
@@ -924,28 +881,12 @@ pub fn JAM() u8 {
 }
 /// (illegal opcode), logical and + LSR
 pub fn ALR() u8 {
-    fetch();
-
-    accumulator &= fetched;
-    statusReg.C = accumulator & 1 == 1;
-    accumulator = accumulator >> 1;
-
-    statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
-
-    return 0;
+    return AND() & LSR();
 }
 /// (illegal opcode), logical and + set C as bit 7
 pub fn ANC() u8 {
-    fetch();
-
-    accumulator &= fetched;
-
-    statusReg.C = accumulator & 0x80 == 0x80;
-    statusReg.N = accumulator & 0x80 == 0x80;
-    statusReg.Z = accumulator == 0;
-
-    return 0;
+    statusReg.C = accumulator & 0x80 != 0;
+    return AND();
 }
 /// (unstable opcode),
 pub fn ANE() u8 {
@@ -953,38 +894,11 @@ pub fn ANE() u8 {
 }
 /// (illegal opcode), logical and + ROR
 pub fn ARR() u8 {
-    fetch();
-
-    accumulator &= fetched;
-
-    const vtmp: u8 = accumulator + fetched;
-
-    const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
-
-    statusReg.C = fetched & 1 == 1;
-    statusReg.Z = tmp & 0x00ff == 0;
-    statusReg.N = tmp & 0x80 == 0x80;
-
-    // TODO: more research, this is simply a guess on what i think is supposed to happen
-    statusReg.V = (~((accumulator ^ fetched) & (accumulator ^ vtmp)) & 0x80) != 0;
-
-    accumulator = @truncate(tmp);
-
-    return 0;
+    return AND() & ROR();
 }
 /// (illegal opcode), decrement memory, then compare
 pub fn DCP() u8 {
-    fetch();
-
-    const result = fetched -% 1;
-    write(addressAbs, result);
-
-    const cmp: u8 = accumulator -% result;
-
-    statusReg.C = cmp >= result or result == -%1;
-    statusReg.Z = cmp == 0;
-    statusReg.N = cmp & 0x80 != 0;
-    return 0;
+    return DEC() & CMP();
 }
 /// (illegal opcode), increment memory, then sub carry
 pub fn ISC() u8 {
@@ -1011,14 +925,12 @@ pub fn ISC() u8 {
 pub fn LAS() u8 {
     fetch();
 
-    // this cant be right
     accumulator = stackPtr & fetched;
     xReg = accumulator;
-    // this is wrong in so many ways
     stackPtr = accumulator;
 
     statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 == 0x80;
+    statusReg.N = accumulator & 0x80 != 0;
 
     return 1;
 }
@@ -1039,37 +951,11 @@ pub fn LXA() u8 {
 }
 /// (illegal opcode), ROL -> memory, then logical and -> accumulator
 pub fn RLA() u8 {
-    fetch();
-
-    const tmp: u16 = fetched << 1 | @as(u16, @intFromBool(statusReg.C));
-    write(addressAbs, @truncate(tmp));
-
-    accumulator &= @truncate(tmp);
-
-    statusReg.C = fetched & 0x80 != 0;
-    statusReg.Z = accumulator == 0;
-    statusReg.N = accumulator & 0x80 != 0;
-
-    return 0;
+    return ROL() & AND();
 }
 /// (illegal opcode), ROR, then ADC
 pub fn RRA() u8 {
-    fetch();
-
-    const tmp: u16 = (@as(u16, @intFromBool(statusReg.C)) << 7) | (fetched >> 1);
-
-    statusReg.C = fetched & 1 == 1;
-
-    const result: u16 = @as(u16, accumulator) + (tmp & 0x00ff) + @as(u16, @intFromBool(statusReg.C));
-
-    statusReg.C = result & 0xff00 != 0;
-    statusReg.Z = result & 0x00ff == 0;
-    statusReg.N = result & 0x0080 != 0;
-    statusReg.V = ((~(accumulator ^ (tmp & 0x00ff)) & (accumulator ^ (result & 0x00ff))) & 0x80) != 0;
-
-    accumulator = @truncate(result);
-
-    return 0;
+    return ROR() & ADC();
 }
 /// (illegal opcode), accumulator & xReg -> memory
 pub fn SAX() u8 {
@@ -1078,16 +964,7 @@ pub fn SAX() u8 {
 }
 /// (illegal opcode), CMP and DEX, (accumulator & xReg) - value -> xReg
 pub fn SBX() u8 {
-    fetch();
-
-    const result: u16 = @as(u16, @intCast(accumulator & xReg)) + ~(fetched +% 1);
-    xReg = @truncate(result);
-
-    statusReg.C = result > 0xff;
-    statusReg.Z = xReg == 0;
-    statusReg.N = xReg & 0x80 == 0x80;
-
-    return 0;
+    return CMP() & DEX();
 }
 /// (unstable opcode)
 pub fn SHA() u8 {
@@ -1135,21 +1012,7 @@ pub fn TAS() u8 {
 }
 /// (illegal opcode), same as SBC
 pub fn USB() u8 {
-    fetch();
-
-    const val: u16 = @as(u16, fetched) ^ 0x00ff;
-
-    const tmp: u16 = @as(u16, accumulator) + val + @as(u16, @intFromBool(statusReg.C));
-    const result: u8 = @truncate(tmp);
-
-    statusReg.C = tmp & 0xff00 != 0;
-    statusReg.Z = result == 0;
-    statusReg.N = result & 0x80 != 0;
-    statusReg.V = ((tmp ^ accumulator) & (tmp ^ (val)) & 0x80) != 0;
-
-    accumulator = result;
-
-    return 0;
+    return SBC();
 }
 
 const StatusRegister = packed struct {
