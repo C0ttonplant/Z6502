@@ -23,10 +23,10 @@ fn parseArgs(io: std.Io, args: std.process.Args) !void {
             \\  -D --dump [file]  Dump memory to file
             \\  -n --nano [uint]  Time in nanoseconds per cpu clock
             \\  -d --debug        Print the processor status
-            \\  -B --break        Stop execution apon hitting the BRK instruction
+            \\  -B --break        Stop execution upon hitting the BRK instruction
             \\
         );
-        std.process.exit(0);
+        std.process.cleanExit(io);
     }
     var i = args.iterate();
     _ = i.next();
