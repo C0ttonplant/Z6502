@@ -14,7 +14,7 @@ pub fn ram(offsetStart: u16, offsetEnd: u16) type {
         pub const startOffset: u16 = offsetStart;
         pub const endOffset: u16 = offsetEnd;
         pub const len = length;
-        pub var data = [_]u8{0} ** length;
+        pub var data: [length]u8 = @splat(0);
 
         /// read from memory onto bus
         pub fn read(addr: u16) u8 {
